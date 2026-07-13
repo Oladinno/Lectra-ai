@@ -1,53 +1,135 @@
 /**
- * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
- * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
+ * LectureAI Design System Colors
+ * Matches the design tokens from the HTML mockups.
  */
-
-import { Platform } from 'react-native';
-
-const tintColorLight = '#0a7ea4';
-const tintColorDark = '#fff';
 
 export const Colors = {
   light: {
-    text: '#11181C',
-    background: '#fff',
-    tint: tintColorLight,
-    icon: '#687076',
-    tabIconDefault: '#687076',
-    tabIconSelected: tintColorLight,
+    // Brand
+    primary: '#031635',
+    secondary: '#4648d4',
+    // Surfaces
+    background: '#F7F9FB',
+    surface: '#F7F9FB',
+    surfaceBright: '#F7F9FB',
+    surfaceDim: '#D8DADC',
+    surfaceContainerLowest: '#FFFFFF',
+    surfaceContainerLow: '#F2F4F6',
+    surfaceContainer: '#ECEEF0',
+    surfaceContainerHigh: '#E6E8EA',
+    surfaceContainerHighest: '#E0E3E5',
+    surfaceVariant: '#E0E3E5',
+    // On Colors
+    onPrimary: '#FFFFFF',
+    onSecondary: '#FFFFFF',
+    onSurface: '#191C1E',
+    onSurfaceVariant: '#44474E',
+    onBackground: '#191C1E',
+    // Primary containers
+    primaryContainer: '#1A2B4B',
+    onPrimaryContainer: '#8293B8',
+    primaryFixed: '#D8E2FF',
+    primaryFixedDim: '#B6C6EF',
+    onPrimaryFixed: '#081B3A',
+    onPrimaryFixedVariant: '#364768',
+    inversePrimary: '#B6C6EF',
+    // Secondary containers
+    secondaryContainer: '#6063EE',
+    onSecondaryContainer: '#FFFBFF',
+    secondaryFixed: '#E1E0FF',
+    secondaryFixedDim: '#C0C1FF',
+    onSecondaryFixed: '#07006C',
+    onSecondaryFixedVariant: '#2F2EBE',
+    // Tertiary
+    tertiary: '#001B18',
+    onTertiary: '#FFFFFF',
+    tertiaryContainer: '#00322D',
+    onTertiaryContainer: '#2CA397',
+    tertiaryFixed: '#89F5E7',
+    tertiaryFixedDim: '#6BD8CB',
+    onTertiaryFixed: '#00201D',
+    onTertiaryFixedVariant: '#005049',
+    // Utility
+    outline: '#75777F',
+    outlineVariant: '#C5C6CF',
+    inverseSurface: '#2D3133',
+    inverseOnSurface: '#EFF1F3',
+    // Error
+    error: '#BA1A1A',
+    onError: '#FFFFFF',
+    errorContainer: '#FFDAD6',
+    onErrorContainer: '#93000A',
+    // Surface tint
+    surfaceTint: '#4E5E81',
+    // Tab / tint convenience alias
+    tint: '#4648d4',
+    icon: '#44474E',
+    tabIconDefault: '#75777F',
+    tabIconSelected: '#4648d4',
+    text: '#191C1E',
   },
   dark: {
-    text: '#ECEDEE',
-    background: '#151718',
-    tint: tintColorDark,
-    icon: '#9BA1A6',
-    tabIconDefault: '#9BA1A6',
-    tabIconSelected: tintColorDark,
+    // Brand
+    primary: '#B6C6EF',
+    secondary: '#C0C1FF',
+    // Surfaces
+    background: '#111318',
+    surface: '#111318',
+    surfaceBright: '#37393C',
+    surfaceDim: '#111318',
+    surfaceContainerLowest: '#0C0E13',
+    surfaceContainerLow: '#191C20',
+    surfaceContainer: '#1D2024',
+    surfaceContainerHigh: '#272A2E',
+    surfaceContainerHighest: '#323539',
+    surfaceVariant: '#44474E',
+    // On Colors
+    onPrimary: '#1B3261',
+    onSecondary: '#1B198B',
+    onSurface: '#C7C6CA',
+    onSurfaceVariant: '#C5C6CF',
+    onBackground: '#C7C6CA',
+    // Primary containers
+    primaryContainer: '#364768',
+    onPrimaryContainer: '#D8E2FF',
+    primaryFixed: '#D8E2FF',
+    primaryFixedDim: '#B6C6EF',
+    onPrimaryFixed: '#081B3A',
+    onPrimaryFixedVariant: '#364768',
+    inversePrimary: '#4E5E81',
+    // Secondary containers
+    secondaryContainer: '#2F2EBE',
+    onSecondaryContainer: '#E1E0FF',
+    secondaryFixed: '#E1E0FF',
+    secondaryFixedDim: '#C0C1FF',
+    onSecondaryFixed: '#07006C',
+    onSecondaryFixedVariant: '#2F2EBE',
+    // Tertiary
+    tertiary: '#89F5E7',
+    onTertiary: '#00322D',
+    tertiaryContainer: '#005049',
+    onTertiaryContainer: '#6BD8CB',
+    tertiaryFixed: '#89F5E7',
+    tertiaryFixedDim: '#6BD8CB',
+    onTertiaryFixed: '#00201D',
+    onTertiaryFixedVariant: '#005049',
+    // Utility
+    outline: '#8F9099',
+    outlineVariant: '#44474E',
+    inverseSurface: '#E3E2E6',
+    inverseOnSurface: '#2D3133',
+    // Error
+    error: '#FFB4AB',
+    onError: '#690005',
+    errorContainer: '#93000A',
+    onErrorContainer: '#FFDAD6',
+    // Surface tint
+    surfaceTint: '#B6C6EF',
+    // Tab / tint convenience alias
+    tint: '#C0C1FF',
+    icon: '#C5C6CF',
+    tabIconDefault: '#8F9099',
+    tabIconSelected: '#C0C1FF',
+    text: '#C7C6CA',
   },
 };
-
-export const Fonts = Platform.select({
-  ios: {
-    /** iOS `UIFontDescriptorSystemDesignDefault` */
-    sans: 'system-ui',
-    /** iOS `UIFontDescriptorSystemDesignSerif` */
-    serif: 'ui-serif',
-    /** iOS `UIFontDescriptorSystemDesignRounded` */
-    rounded: 'ui-rounded',
-    /** iOS `UIFontDescriptorSystemDesignMonospaced` */
-    mono: 'ui-monospace',
-  },
-  default: {
-    sans: 'normal',
-    serif: 'serif',
-    rounded: 'normal',
-    mono: 'monospace',
-  },
-  web: {
-    sans: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
-    serif: "Georgia, 'Times New Roman', serif",
-    rounded: "'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif",
-    mono: "SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
-  },
-});
