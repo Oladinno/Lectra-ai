@@ -3,10 +3,13 @@ import uuid
 import shutil
 import tempfile
 import asyncio
-from fastapi import FastAPI, UploadFile, File, Form, Depends, BackgroundTasks, HTTPException
+import traceback
+from fastapi import FastAPI, UploadFile, File, Form, Depends, BackgroundTasks, HTTPException, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
+from pydantic import BaseModel
 
 import database
 import models
@@ -14,6 +17,7 @@ import storage
 import audio_processor
 import transcriber
 import ai_generator
+from logger import logger
 
 app = FastAPI(title="LectureAI Backend API")
 
@@ -91,7 +95,7 @@ async def process_lecture_task(lecture_id: str, temp_file_path: str, db_session_
                 except Exception:
                     pass
     except Exception as e:
-        print(f"[{lecture_id}] Error in background worker: {e}")
+        logger.exception(f"[{lecture_id}] Error in background worker: {e}")
         lecture.status = "failed"
         lecture.error_message = str(e)
         db.commit()
@@ -189,3 +193,49 @@ def get_lecture_status(lecture_id: str, db: Session = Depends(database.get_db)):
         "status": lecture.status,
         "error_message": lecture.error_message
     }
+
+# Pydantic schema for frontend error logging
+class FrontendErrorLog(BaseModel):
+    message: str
+    stack: Optional[str] = None
+    componentStack: Optional[str] = None
+    url: Optional[str] = None
+    platform: Optional[str] = None
+    timestamp: Optional[str] = None
+
+@app.post("/api/logs/error")
+def log_frontend_error(error_log: FrontendErrorLog):
+    """
+    Endpoint for frontend to report client-side crashes and handled exceptions.
+    """
+    logger.error(
+        f"[Frontend Error] Platform: {error_log.platform or 'unknown'} | URL: {error_log.url or 'unknown'} | Time: {error_log.timestamp or 'unknown'}\n"
+        f"Message: {error_log.message}\n"
+        f"Stack: {error_log.stack or 'No JS stack trace'}\n"
+        f"Component Stack: {error_log.componentStack or 'No React component stack'}"
+    )
+    return {"status": "success"}
+
+# Global exception handlers
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """
+    Catch-all exception handler for any unhandled exceptions during API request execution.
+    """
+    logger.error(f"Unhandled Exception on {request.method} {request.url.path}: {exc}\n{traceback.format_exc()}")
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "An internal server error occurred. The incident has been logged."}
+    )
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    """
+    HTTP exception handler to log warnings/errors for client requests that fail.
+    """
+    logger.warning(f"HTTP {exc.status_code} on {request.method} {request.url.path}: {exc.detail}")
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail}
+    )
+

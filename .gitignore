@@ -45,3 +45,6 @@ app-example
 keys.md
 
 backend/.env
+backend/app.log
+backend/__pycache__/
+*.log

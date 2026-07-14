@@ -16,6 +16,7 @@ import { Colors } from '@/constants/theme';
 import { router } from 'expo-router';
 import { Audio } from 'expo-av';
 import { API_BASE_URL } from '@/constants/api';
+import { logError } from '@/utils/logger';
 
 type RecordingState = 'idle' | 'recording' | 'paused';
 
@@ -102,6 +103,7 @@ export default function RecordScreen() {
       setRecording(recording);
       setState('recording');
     } catch (err) {
+      logError(err, 'RecordScreen/startRecording');
       console.error('Failed to start recording', err);
       Alert.alert("Error", "Could not start audio recording.");
     }
@@ -113,6 +115,7 @@ export default function RecordScreen() {
       await recording.pauseAsync();
       setState('paused');
     } catch (err) {
+      logError(err, 'RecordScreen/pauseRecording');
       console.error('Failed to pause recording', err);
     }
   }
@@ -123,6 +126,7 @@ export default function RecordScreen() {
       await recording.startAsync();
       setState('recording');
     } catch (err) {
+      logError(err, 'RecordScreen/resumeRecording');
       console.error('Failed to resume recording', err);
     }
   }
@@ -182,6 +186,7 @@ export default function RecordScreen() {
       router.push({ pathname: '/processing', params: { id: resData.id } });
     } catch (err: any) {
       setLoading(false);
+      logError(err, 'RecordScreen/handleSave');
       Alert.alert("Upload Error", err.message || "Failed to upload recording to backend server.");
     }
   }

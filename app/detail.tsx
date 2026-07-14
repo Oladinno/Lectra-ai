@@ -21,6 +21,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
 import { router, useLocalSearchParams } from 'expo-router';
 import { API_BASE_URL } from '@/constants/api';
+import { logError } from '@/utils/logger';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -172,6 +173,7 @@ export default function DetailScreen() {
           console.warn("Failed to fetch lecture data: status " + response.status);
         }
       } catch (error) {
+        logError(error, `DetailScreen/fetchLecture/${id}`);
         console.error("Error fetching lecture details:", error);
       } finally {
         setLoading(false);

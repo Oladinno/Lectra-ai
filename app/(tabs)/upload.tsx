@@ -20,6 +20,7 @@ import { Colors } from '@/constants/theme';
 import { router } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
 import { API_BASE_URL } from '@/constants/api';
+import { logError } from '@/utils/logger';
 
 const RECENT_UPLOADS = [
   {
@@ -120,6 +121,7 @@ export default function UploadScreen() {
       xhr.send(formData);
     } catch (error: any) {
       setUploading(false);
+      logError(error, 'UploadScreen/handlePickFile');
       Alert.alert("Error", error.message || "Failed to pick file");
     }
   }

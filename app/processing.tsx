@@ -12,6 +12,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
 import { router, useLocalSearchParams } from 'expo-router';
 import { API_BASE_URL } from '@/constants/api';
+import { logError } from '@/utils/logger';
 
 const STEPS = [
   {
@@ -155,6 +156,7 @@ export default function ProcessingScreen() {
           setErrorMsg(data.error_message || "Lecture processing failed in backend pipeline.");
         }
       } catch (err: any) {
+        logError(err, 'ProcessingScreen/checkStatus');
         console.error("Polling error: ", err);
       }
     };

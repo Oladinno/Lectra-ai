@@ -17,6 +17,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
 import { router, useFocusEffect } from 'expo-router';
 import { API_BASE_URL } from '@/constants/api';
+import { logError } from '@/utils/logger';
 
 const RECENT_TRANSCRIPTS = [
   {
@@ -87,6 +88,7 @@ export default function HomeScreen() {
             }
           }
         } catch (error) {
+          logError(error, 'Dashboard/fetchLectures');
           console.error("Error fetching lectures list:", error);
         } finally {
           if (active) setLoading(false);
