@@ -21,7 +21,15 @@ ssl_context = ssl.create_default_context()
 
 engine = create_engine(
     db_url,
-    connect_args={"ssl_context": ssl_context}
+    connect_args={"ssl_context": ssl_context},
+    # pool_pre_ping tests each connection before use — automatically reconnects stale ones.
+    # This is essential for Neon (serverless Postgres) which closes idle connections quickly.
+    pool_pre_ping=True,
+    # Recycle connections after 5 minutes to prevent them going stale in the pool.
+    pool_recycle=300,
+    # Keep pool small for a serverless DB (Neon has limited concurrent connections).
+    pool_size=5,
+    max_overflow=2,
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
