@@ -80,7 +80,7 @@ async def generate_lecture_insights(transcript_text: str) -> dict:
     }
     
     async with httpx.AsyncClient() as client:
-        response = await client.post(url, json=payload, timeout=120.0)
+        response = await client.post(url, json=payload, timeout=300.0)
         
         if response.status_code != 200:
             raise Exception(f"Gemini API returned {response.status_code}: {response.text}")
