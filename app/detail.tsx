@@ -22,6 +22,7 @@ import { Colors } from '@/constants/theme';
 import { router, useLocalSearchParams } from 'expo-router';
 import { API_BASE_URL } from '@/constants/api';
 import { logError } from '@/utils/logger';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -152,6 +153,7 @@ export default function DetailScreen() {
   const colorScheme = useColorScheme();
   const C = Colors[colorScheme ?? 'light'];
   const { id } = useLocalSearchParams<{ id: string }>();
+  const insets = useSafeAreaInsets();
 
   const [activeTab, setActiveTab] = useState<Tab>('transcript');
   const [lecture, setLecture] = useState<any>(null);
@@ -214,7 +216,7 @@ export default function DetailScreen() {
   return (
     <View style={[styles.root, { backgroundColor: C.background }]}>
       {/* App Bar */}
-      <View style={[styles.appBar, { backgroundColor: C.surface }]}>
+      <View style={[styles.appBar, { backgroundColor: C.surface, paddingTop: insets.top + 16, height: 72 + insets.top + 16 }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={24} color={C.primary} />
         </TouchableOpacity>

@@ -10,6 +10,7 @@ import {
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const STATS = [
   { label: 'Lectures', value: '24' },
@@ -29,10 +30,11 @@ const SETTINGS = [
 export default function ProfileScreen() {
   const colorScheme = useColorScheme();
   const C = Colors[colorScheme ?? 'light'];
+  const insets = useSafeAreaInsets();
 
   return (
     <View style={[styles.root, { backgroundColor: C.background }]}>
-      <View style={[styles.appBar, { backgroundColor: C.surface }]}>
+      <View style={[styles.appBar, { backgroundColor: C.surface, paddingTop: insets.top + 16, height: 64 + insets.top + 16 }]}>
         <Text style={[styles.appBarTitle, { color: C.primary }]}>Profile</Text>
       </View>
 

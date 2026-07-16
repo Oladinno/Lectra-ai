@@ -18,6 +18,7 @@ import { Colors } from '@/constants/theme';
 import { router, useFocusEffect } from 'expo-router';
 import { API_BASE_URL } from '@/constants/api';
 import { logError } from '@/utils/logger';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const RECENT_TRANSCRIPTS = [
   {
@@ -70,6 +71,7 @@ const QUICK_INSIGHTS = [
 export default function HomeScreen() {
   const colorScheme = useColorScheme();
   const C = Colors[colorScheme ?? 'light'];
+  const insets = useSafeAreaInsets();
 
   const [lectures, setLectures] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -117,7 +119,7 @@ export default function HomeScreen() {
       <StatusBar barStyle="dark-content" backgroundColor={C.surface} />
 
       {/* Top App Bar */}
-      <View style={[styles.appBar, { backgroundColor: C.surface }]}>
+      <View style={[styles.appBar, { backgroundColor: C.surface, paddingTop: insets.top + 16, height: 64 + insets.top + 16 }]}>
         <View style={styles.appBarLeft}>
           <Ionicons name="menu" size={26} color={C.primary} />
           <Text style={[styles.appBarTitle, { color: C.primary }]}>LectureAI</Text>

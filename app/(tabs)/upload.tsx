@@ -21,6 +21,7 @@ import { router } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
 import { API_BASE_URL } from '@/constants/api';
 import { logError } from '@/utils/logger';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const RECENT_UPLOADS = [
   {
@@ -46,6 +47,7 @@ const RECENT_UPLOADS = [
 export default function UploadScreen() {
   const colorScheme = useColorScheme();
   const C = Colors[colorScheme ?? 'light'];
+  const insets = useSafeAreaInsets();
 
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -140,7 +142,7 @@ export default function UploadScreen() {
   return (
     <View style={[styles.root, { backgroundColor: C.background }]}>
       {/* App Bar */}
-      <View style={[styles.appBar, { backgroundColor: C.surface }]}>
+      <View style={[styles.appBar, { backgroundColor: C.surface, paddingTop: insets.top + 16, height: 64 + insets.top + 16 }]}>
         <Text style={[styles.appBarTitle, { color: C.primary }]}>Upload Lecture</Text>
       </View>
 
