@@ -9,6 +9,7 @@ async def generate_lecture_insights(transcript_text: str) -> dict:
       - summary: List[str]
       - notes: List[dict(title: str, bullets: List[str])]
       - flashcards: List[dict(q: str, a: str)]
+      - quiz: List[dict(question: str, options: List[str], correct_answer_index: int)]
     """
     if not settings.GEMINI_API_KEY:
         raise ValueError("Gemini API key is not set in environment variables")
@@ -20,7 +21,8 @@ async def generate_lecture_insights(transcript_text: str) -> dict:
     Provide the following structured study materials:
     1. **Summary**: A high-level list of key takeaways (5 to 8 bullet points).
     2. **Notes**: A list of structured sections, each with a 'title' (representing the concept) and 'bullets' (detailing definitions, examples, and key details).
-    3. **Flashcards**: A set of 5 to 10 question-and-answer pairs. The questions should be clear ("q") and answers should be descriptive ("a").
+    3. **Flashcards**: A comprehensive set of 10 to 20 question-and-answer pairs. The questions should be clear ("q") and answers should be descriptive ("a").
+    4. **Quiz**: A set of 10 to 20 multiple-choice questions based on the transcript content. Each question should have a "question" text, a list of exactly 4 "options" as possible answers, and a 0-indexed "correct_answer_index" representing the correct option.
     
     Transcript:
     \"\"\"
@@ -60,9 +62,24 @@ async def generate_lecture_insights(transcript_text: str) -> dict:
                     },
                     "required": ["q", "a"]
                 }
+            },
+            "quiz": {
+                "type": "ARRAY",
+                "items": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "question": {"type": "STRING"},
+                        "options": {
+                            "type": "ARRAY",
+                            "items": {"type": "STRING"}
+                        },
+                        "correct_answer_index": {"type": "INTEGER"}
+                    },
+                    "required": ["question", "options", "correct_answer_index"]
+                }
             }
         },
-        "required": ["summary", "notes", "flashcards"]
+        "required": ["summary", "notes", "flashcards", "quiz"]
     }
     
     payload = {

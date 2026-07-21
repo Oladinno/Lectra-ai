@@ -34,6 +34,7 @@ class Lecture(Base):
     summary = Column(JSON, nullable=True)     # Array of strings
     notes = Column(JSON, nullable=True)       # Array of {title: str, bullets: List[str]}
     flashcards = Column(JSON, nullable=True)  # Array of {q: str, a: str}
+    quiz = Column(JSON, nullable=True)        # Array of {question: str, options: List[str], correct_answer_index: int}
 
     created_at = Column(DateTime, default=datetime.utcnow)
     
@@ -80,5 +81,6 @@ class LectureResponse(BaseModel):
     summary: Optional[List[str]] = None
     notes: Optional[List[Any]] = None
     flashcards: Optional[List[Any]] = None
+    quiz: Optional[List[Any]] = None
     created_at: Optional[datetime] = None
     user_id: Optional[str] = None

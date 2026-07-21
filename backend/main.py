@@ -82,7 +82,8 @@ async def process_lecture_task(lecture_id: str, temp_file_path: str, db_session_
             lecture.summary = insights.get("summary", [])
             lecture.notes = insights.get("notes", [])
             lecture.flashcards = insights.get("flashcards", [])
-            lecture.accuracy = "98%"  # Hardcoded Whisper API transcription accuracy
+            lecture.quiz = insights.get("quiz", [])
+            lecture.accuracy = "98%"  # Whisper API transcription accuracy
             lecture.status = "completed"
             db.commit()
             print(f"[{lecture_id}] Lecture processing completed successfully.")
@@ -259,6 +260,57 @@ def get_lecture_status(
         "status": lecture.status,
         "error_message": lecture.error_message
     }
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Edit & Delete Endpoints
+# ─────────────────────────────────────────────────────────────────────────────
+
+class LectureUpdate(BaseModel):
+    title: Optional[str] = None
+    transcript: Optional[List] = None
+
+@app.put("/api/lectures/{lecture_id}", response_model=models.LectureResponse)
+def update_lecture(
+    lecture_id: str,
+    updates: LectureUpdate,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """
+    Allows the user to update the title or transcript of a lecture they own.
+    """
+    lecture = db.query(models.Lecture).filter(
+        models.Lecture.id == lecture_id,
+        models.Lecture.user_id == current_user.id
+    ).first()
+    if not lecture:
+        raise HTTPException(status_code=404, detail="Lecture not found")
+    if updates.title is not None:
+        lecture.title = updates.title
+    if updates.transcript is not None:
+        lecture.transcript = updates.transcript
+    db.commit()
+    db.refresh(lecture)
+    return lecture
+
+@app.delete("/api/lectures/{lecture_id}")
+def delete_lecture(
+    lecture_id: str,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """
+    Permanently deletes a lecture record owned by the current user.
+    """
+    lecture = db.query(models.Lecture).filter(
+        models.Lecture.id == lecture_id,
+        models.Lecture.user_id == current_user.id
+    ).first()
+    if not lecture:
+        raise HTTPException(status_code=404, detail="Lecture not found")
+    db.delete(lecture)
+    db.commit()
+    return {"detail": "Lecture deleted successfully"}
 
 # Pydantic schema for frontend error logging
 class FrontendErrorLog(BaseModel):

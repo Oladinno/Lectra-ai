@@ -9,6 +9,9 @@ import {
   Dimensions,
   Share,
   ActivityIndicator,
+  TextInput,
+  Alert,
+  Modal,
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -24,70 +27,21 @@ import { API_BASE_URL } from '@/constants/api';
 import { logError } from '@/utils/logger';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/app/context/auth';
+import { Audio } from 'expo-av';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
+import * as FileSystem from 'expo-file-system';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
-type Tab = 'transcript' | 'summary' | 'notes' | 'flashcards';
+type Tab = 'transcript' | 'summary' | 'notes' | 'flashcards' | 'quiz';
 
 const TABS: { key: Tab; label: string; icon: string }[] = [
   { key: 'transcript', label: 'Transcript', icon: 'document-text-outline' },
   { key: 'summary', label: 'Summary', icon: 'list-outline' },
   { key: 'notes', label: 'Notes', icon: 'create-outline' },
   { key: 'flashcards', label: 'Flashcards', icon: 'albums-outline' },
-];
-
-const TRANSCRIPT_PARAGRAPHS = [
-  { time: '00:00', text: "Welcome to Computer Science 101. Today we're going to explore the fundamentals of algorithms and data structures — two of the most critical pillars in all of computer science." },
-  { time: '02:15', text: "An algorithm is simply a sequence of well-defined instructions for solving a problem. The key properties we look for are correctness, efficiency, and clarity." },
-  { time: '05:40', text: "Let's dive into Big-O notation. O(n) means the runtime grows linearly with input size. O(n²) signals a quadratic relationship — quite common in naive sorting algorithms such as bubble sort." },
-  { time: '12:03', text: "Data structures are the containers we use to organise data. Arrays, linked lists, stacks, queues, trees, and graphs all carry different trade-offs in time and space complexity." },
-  { time: '20:45', text: "Recursion is a technique where a function calls itself. It is the backbone of many elegant algorithms — think binary search, quicksort, and tree traversal." },
-];
-
-const SUMMARY_POINTS = [
-  'Algorithms are finite instruction sets for solving problems, evaluated by correctness and efficiency.',
-  'Big-O notation quantifies growth rate: O(1) constant, O(log n) logarithmic, O(n) linear, O(n²) quadratic.',
-  'Core data structures covered: Arrays, Linked Lists, Stacks, Queues, Trees, and Graphs.',
-  'Recursion enables elegant problem solving and underpins divide-and-conquer strategies.',
-  'Time complexity and space complexity are always trade-offs — understanding both is key to engineering sound solutions.',
-];
-
-const NOTES_SECTIONS = [
-  {
-    title: 'Algorithms',
-    bullets: [
-      'Finite sequence of steps to solve a problem',
-      'Evaluated via correctness, efficiency, and readability',
-      'Examples: Sorting, searching, pathfinding',
-    ],
-  },
-  {
-    title: 'Big-O Complexity',
-    bullets: [
-      'O(1) — Constant: array index lookup',
-      'O(log n) — Logarithmic: binary search',
-      'O(n) — Linear: traversing a list',
-      'O(n²) — Quadratic: bubble sort',
-    ],
-  },
-  {
-    title: 'Core Data Structures',
-    bullets: [
-      'Array: contiguous memory, O(1) access',
-      'Linked List: dynamic size, O(n) search',
-      'Stack: LIFO — used in undo and recursion',
-      'Queue: FIFO — used in BFS',
-      'Tree: hierarchical, enables O(log n) search (BST)',
-    ],
-  },
-];
-
-const FLASHCARDS = [
-  { q: 'What is an algorithm?', a: 'A finite, ordered sequence of well-defined instructions for solving a problem.' },
-  { q: 'What does O(n) mean?', a: 'The runtime grows linearly with the size of the input — doubling input doubles the time.' },
-  { q: 'Define a Stack data structure.', a: 'A Last-In-First-Out (LIFO) structure. Push adds to the top; pop removes from the top.' },
-  { q: 'What is recursion?', a: 'A technique where a function calls itself with a smaller sub-problem until reaching a base case.' },
-  { q: 'What is the time complexity of binary search?', a: 'O(log n) — it halves the search space at each step, making it very efficient on sorted arrays.' },
+  { key: 'quiz', label: 'Quiz', icon: 'help-circle-outline' },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -148,6 +102,82 @@ function FlipCard({ question, answer, C }: { question: string; answer: string; C
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Quiz Card Component
+// ─────────────────────────────────────────────────────────────────────────────
+function QuizCard({
+  question,
+  options,
+  correctIndex,
+  questionNum,
+  C,
+  onAnswer,
+}: {
+  question: string;
+  options: string[];
+  correctIndex: number;
+  questionNum: number;
+  C: typeof Colors['light'];
+  onAnswer: (correct: boolean) => void;
+}) {
+  const [selected, setSelected] = useState<number | null>(null);
+
+  function handleSelect(idx: number) {
+    if (selected !== null) return; // already answered
+    setSelected(idx);
+    onAnswer(idx === correctIndex);
+  }
+
+  function getOptionStyle(idx: number) {
+    if (selected === null) return { backgroundColor: C.surfaceContainerLowest, borderColor: C.outlineVariant };
+    if (idx === correctIndex) return { backgroundColor: '#dcfce7', borderColor: '#16a34a' };
+    if (idx === selected && idx !== correctIndex) return { backgroundColor: '#fee2e2', borderColor: '#dc2626' };
+    return { backgroundColor: C.surfaceContainerLowest, borderColor: C.outlineVariant };
+  }
+
+  function getOptionTextColor(idx: number) {
+    if (selected === null) return C.onSurface;
+    if (idx === correctIndex) return '#15803d';
+    if (idx === selected && idx !== correctIndex) return '#dc2626';
+    return C.onSurfaceVariant;
+  }
+
+  return (
+    <View style={[styles.quizCard, { backgroundColor: C.surfaceContainerLowest, borderColor: C.outlineVariant }]}>
+      <Text style={[styles.quizNum, { color: C.outline }]}>Q{questionNum}</Text>
+      <Text style={[styles.quizQuestion, { color: C.primary }]}>{question}</Text>
+      <View style={styles.quizOptions}>
+        {options.map((opt, idx) => (
+          <TouchableOpacity
+            key={idx}
+            style={[styles.quizOption, getOptionStyle(idx)]}
+            onPress={() => handleSelect(idx)}
+            activeOpacity={0.8}
+          >
+            <View style={[styles.quizOptionBullet, { borderColor: selected !== null && idx === correctIndex ? '#16a34a' : selected === idx && idx !== correctIndex ? '#dc2626' : C.outline }]}>
+              {selected !== null && idx === correctIndex && <Ionicons name="checkmark" size={12} color="#16a34a" />}
+              {selected !== null && idx === selected && idx !== correctIndex && <Ionicons name="close" size={12} color="#dc2626" />}
+            </View>
+            <Text style={[styles.quizOptionText, { color: getOptionTextColor(idx) }]}>{opt}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+      {selected !== null && (
+        <View style={[styles.quizResult, { backgroundColor: selected === correctIndex ? '#dcfce7' : '#fee2e2' }]}>
+          <Ionicons
+            name={selected === correctIndex ? 'checkmark-circle' : 'close-circle'}
+            size={16}
+            color={selected === correctIndex ? '#16a34a' : '#dc2626'}
+          />
+          <Text style={[styles.quizResultText, { color: selected === correctIndex ? '#15803d' : '#dc2626' }]}>
+            {selected === correctIndex ? 'Correct!' : `Incorrect. Answer: ${options[correctIndex]}`}
+          </Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Main Screen
 // ─────────────────────────────────────────────────────────────────────────────
 export default function DetailScreen() {
@@ -155,18 +185,30 @@ export default function DetailScreen() {
   const C = Colors[colorScheme ?? 'light'];
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
-
   const { token } = useAuth();
+
   const [activeTab, setActiveTab] = useState<Tab>('transcript');
   const [lecture, setLecture] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
-  useEffect(() => {
-    if (!id) {
-      setLoading(false);
-      return;
-    }
+  // Audio player state
+  const soundRef = useRef<Audio.Sound | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [audioPosition, setAudioPosition] = useState(0);
+  const [audioDuration, setAudioDuration] = useState(0);
+  const [audioLoading, setAudioLoading] = useState(false);
 
+  // Edit state
+  const [editMode, setEditMode] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  // Quiz score state
+  const [quizAnswered, setQuizAnswered] = useState(0);
+  const [quizCorrect, setQuizCorrect] = useState(0);
+
+  useEffect(() => {
+    if (!id) { setLoading(false); return; }
     const fetchLecture = async () => {
       try {
         const response = await fetch(`${API_BASE_URL}/api/lectures/${id}`, {
@@ -175,23 +217,210 @@ export default function DetailScreen() {
         if (response.ok) {
           const data = await response.json();
           setLecture(data);
+          setEditTitle(data.title || '');
         } else {
           console.warn("Failed to fetch lecture data: status " + response.status);
         }
       } catch (error) {
         logError(error, `DetailScreen/fetchLecture/${id}`);
-        console.error("Error fetching lecture details:", error);
       } finally {
         setLoading(false);
       }
     };
-
     fetchLecture();
+    return () => {
+      soundRef.current?.unloadAsync();
+    };
   }, [id]);
 
+  // ── Audio playback ──────────────────────────────────────────────────────────
+  async function toggleAudio() {
+    if (!lecture?.audio_url) return;
+    try {
+      if (!soundRef.current) {
+        setAudioLoading(true);
+        await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true });
+        const { sound } = await Audio.Sound.createAsync(
+          { uri: lecture.audio_url },
+          { shouldPlay: true },
+          (status) => {
+            if (status.isLoaded) {
+              setAudioPosition(status.positionMillis || 0);
+              setAudioDuration(status.durationMillis || 0);
+              setIsPlaying(status.isPlaying || false);
+              if (status.didJustFinish) {
+                setIsPlaying(false);
+                setAudioPosition(0);
+              }
+            }
+          }
+        );
+        soundRef.current = sound;
+        setAudioLoading(false);
+        setIsPlaying(true);
+      } else {
+        const status = await soundRef.current.getStatusAsync();
+        if (status.isLoaded) {
+          if (status.isPlaying) {
+            await soundRef.current.pauseAsync();
+            setIsPlaying(false);
+          } else {
+            await soundRef.current.playAsync();
+            setIsPlaying(true);
+          }
+        }
+      }
+    } catch (err) {
+      setAudioLoading(false);
+      logError(err, 'DetailScreen/toggleAudio');
+    }
+  }
+
+  function formatMs(ms: number) {
+    const total = Math.floor(ms / 1000);
+    const m = Math.floor(total / 60).toString().padStart(2, '0');
+    const s = (total % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+  }
+
+  // ── Save edits ──────────────────────────────────────────────────────────────
+  async function handleSaveEdit() {
+    if (!editTitle.trim()) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/lectures/${id}`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: editTitle }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setLecture(updated);
+        setEditMode(false);
+      } else {
+        Alert.alert('Error', 'Failed to save changes.');
+      }
+    } catch (err) {
+      logError(err, 'DetailScreen/handleSaveEdit');
+      Alert.alert('Error', 'Network error while saving.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // ── Delete lecture ──────────────────────────────────────────────────────────
+  function handleDelete() {
+    Alert.alert(
+      'Delete Lecture',
+      `Are you sure you want to permanently delete "${lecture?.title}"? This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await soundRef.current?.unloadAsync();
+              const res = await fetch(`${API_BASE_URL}/api/lectures/${id}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` },
+              });
+              if (res.ok) {
+                router.replace('/(tabs)');
+              } else {
+                Alert.alert('Error', 'Failed to delete lecture.');
+              }
+            } catch (err) {
+              logError(err, 'DetailScreen/handleDelete');
+            }
+          },
+        },
+      ]
+    );
+  }
+
+  // ── Export helpers ──────────────────────────────────────────────────────────
+  async function exportPDF() {
+    if (!lecture) return;
+    const notesHtml = (lecture.notes || []).map((sec: any) =>
+      `<h3>${sec.title}</h3><ul>${(sec.bullets || []).map((b: string) => `<li>${b}</li>`).join('')}</ul>`
+    ).join('');
+    const summaryHtml = (lecture.summary || []).map((p: string) => `<li>${p}</li>`).join('');
+    const html = `
+      <html><body style="font-family:Arial,sans-serif;padding:20px;max-width:800px;margin:auto">
+        <h1>${lecture.title}</h1>
+        <p><em>${new Date(lecture.created_at).toLocaleDateString()} · ${lecture.duration || ''} · ${lecture.accuracy || ''}</em></p>
+        <h2>Summary</h2><ul>${summaryHtml}</ul>
+        <h2>Study Notes</h2>${notesHtml}
+        <h2>Flashcards</h2>
+        ${(lecture.flashcards || []).map((fc: any, i: number) => `<p><strong>Q${i+1}. ${fc.q}</strong><br/>${fc.a}</p>`).join('')}
+      </body></html>
+    `;
+    try {
+      const { uri } = await Print.printToFileAsync({ html });
+      await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: `${lecture.title} — LectureAI` });
+    } catch (err) {
+      logError(err, 'DetailScreen/exportPDF');
+      Alert.alert('Export Error', 'Could not generate PDF.');
+    }
+  }
+
+  async function exportMarkdown() {
+    if (!lecture) return;
+    const md = [
+      `# ${lecture.title}`,
+      `> ${new Date(lecture.created_at).toLocaleDateString()} · ${lecture.duration || ''} · ${lecture.accuracy || ''}`,
+      '',
+      '## Summary',
+      ...(lecture.summary || []).map((p: string) => `- ${p}`),
+      '',
+      '## Notes',
+      ...(lecture.notes || []).flatMap((sec: any) => [`### ${sec.title}`, ...(sec.bullets || []).map((b: string) => `- ${b}`), '']),
+      '## Flashcards',
+      ...(lecture.flashcards || []).map((fc: any, i: number) => `**Q${i+1}.** ${fc.q}\n**A:** ${fc.a}\n`),
+    ].join('\n');
+
+    const filename = `${lecture.title.replace(/[^a-z0-9]/gi, '_')}_LectureAI.md`;
+    const tempUri = `${FileSystem.cacheDirectory}${filename}`;
+    try {
+      await FileSystem.writeAsStringAsync(tempUri, md, { encoding: FileSystem.EncodingType.UTF8 });
+      await Sharing.shareAsync(tempUri, { mimeType: 'text/markdown', dialogTitle: `${lecture.title} — Markdown` });
+    } catch (err) {
+      logError(err, 'DetailScreen/exportMarkdown');
+      Alert.alert('Export Error', 'Could not export Markdown.');
+    }
+  }
+
+  async function exportAnkiCSV() {
+    if (!lecture) return;
+    const csvRows = ['Front,Back', ...(lecture.flashcards || []).map((fc: any) => `"${fc.q.replace(/"/g, '""')}","${fc.a.replace(/"/g, '""')}"`)];
+    const csv = csvRows.join('\n');
+    const filename = `${lecture.title.replace(/[^a-z0-9]/gi, '_')}_Anki.csv`;
+    const tempUri = `${FileSystem.cacheDirectory}${filename}`;
+    try {
+      await FileSystem.writeAsStringAsync(tempUri, csv, { encoding: FileSystem.EncodingType.UTF8 });
+      await Sharing.shareAsync(tempUri, { mimeType: 'text/csv', dialogTitle: `${lecture.title} — Anki CSV` });
+    } catch (err) {
+      logError(err, 'DetailScreen/exportAnkiCSV');
+      Alert.alert('Export Error', 'Could not export CSV.');
+    }
+  }
+
+  function showExportOptions() {
+    Alert.alert(
+      'Export Study Materials',
+      'Choose an export format:',
+      [
+        { text: 'PDF (Summary + Notes)', onPress: exportPDF },
+        { text: 'Markdown (.md)', onPress: exportMarkdown },
+        { text: 'Anki Flashcards (.csv)', onPress: exportAnkiCSV },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    );
+  }
+
   function handleShare() {
-    const lectureTitle = lecture?.title || 'Computer Science 101';
-    Share.share({ message: `${lectureTitle} — Transcript, Summary & Notes from LectureAI` });
+    Share.share({ message: `${lecture?.title || 'Lecture'} — Transcript, Summary & Notes from LectureAI` });
   }
 
   if (loading) {
@@ -203,37 +432,91 @@ export default function DetailScreen() {
     );
   }
 
-  const title = lecture?.title || 'Computer Science 101';
-  const duration = lecture?.duration || '45 mins';
-  const accuracy = lecture?.accuracy || '98% Accuracy';
-  const createdDate = lecture?.created_at 
-    ? new Date(lecture.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) 
-    : 'Sept 12';
-  
+  const title = lecture?.title || 'Untitled Lecture';
+  const duration = lecture?.duration || '—';
+  const accuracy = lecture?.accuracy || '—';
+  const createdDate = lecture?.created_at
+    ? new Date(lecture.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+    : '';
   const metaText = `${createdDate} · ${duration} · ${accuracy}`;
 
-  const transcriptData = lecture?.transcript || TRANSCRIPT_PARAGRAPHS;
-  const summaryData = lecture?.summary || SUMMARY_POINTS;
-  const notesData = lecture?.notes || NOTES_SECTIONS;
-  const flashcardsData = lecture?.flashcards || FLASHCARDS;
+  const transcriptData = lecture?.transcript || [];
+  const summaryData = lecture?.summary || [];
+  const notesData = lecture?.notes || [];
+  const flashcardsData = lecture?.flashcards || [];
+  const quizData = lecture?.quiz || [];
+
+  const progressPct = audioDuration > 0 ? Math.round((audioPosition / audioDuration) * 100) : 0;
 
   return (
     <View style={[styles.root, { backgroundColor: C.background }]}>
       {/* App Bar */}
-      <View style={[styles.appBar, { backgroundColor: C.surface, paddingTop: insets.top + 16, height: 72 + insets.top + 16 }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+      <View style={[styles.appBar, { backgroundColor: C.surface, paddingTop: insets.top + 12, height: 72 + insets.top + 12 }]}>
+        <TouchableOpacity onPress={() => { soundRef.current?.unloadAsync(); router.back(); }} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={24} color={C.primary} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={[styles.appBarTitle, { color: C.primary }]} numberOfLines={1}>
-            {title}
-          </Text>
-          <Text style={[styles.appBarSub, { color: C.onSurfaceVariant }]}>{metaText}</Text>
+          {editMode ? (
+            <TextInput
+              style={[styles.editTitleInput, { color: C.primary, borderColor: C.secondary }]}
+              value={editTitle}
+              onChangeText={setEditTitle}
+              autoFocus
+            />
+          ) : (
+            <>
+              <Text style={[styles.appBarTitle, { color: C.primary }]} numberOfLines={1}>{title}</Text>
+              <Text style={[styles.appBarSub, { color: C.onSurfaceVariant }]}>{metaText}</Text>
+            </>
+          )}
         </View>
-        <TouchableOpacity onPress={handleShare} style={styles.shareBtn}>
-          <Ionicons name="share-outline" size={22} color={C.secondary} />
-        </TouchableOpacity>
+        {/* Action buttons */}
+        <View style={styles.appBarActions}>
+          {editMode ? (
+            <>
+              <TouchableOpacity onPress={() => setEditMode(false)} style={styles.iconBtn}>
+                <Ionicons name="close" size={22} color={C.error} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleSaveEdit} style={styles.iconBtn} disabled={saving}>
+                {saving ? <ActivityIndicator size="small" color={C.secondary} /> : <Ionicons name="checkmark" size={22} color={C.secondary} />}
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <TouchableOpacity onPress={() => setEditMode(true)} style={styles.iconBtn}>
+                <Ionicons name="pencil-outline" size={20} color={C.onSurfaceVariant} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={showExportOptions} style={styles.iconBtn}>
+                <Ionicons name="share-outline" size={20} color={C.secondary} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleDelete} style={styles.iconBtn}>
+                <Ionicons name="trash-outline" size={20} color={C.error} />
+              </TouchableOpacity>
+            </>
+          )}
+        </View>
       </View>
+
+      {/* Audio Player */}
+      {lecture?.audio_url && (
+        <View style={[styles.audioPlayer, { backgroundColor: C.surfaceContainerLowest, borderBottomColor: C.outlineVariant }]}>
+          <TouchableOpacity style={[styles.audioPlayBtn, { backgroundColor: C.secondary }]} onPress={toggleAudio} disabled={audioLoading}>
+            {audioLoading
+              ? <ActivityIndicator size="small" color="#fff" />
+              : <Ionicons name={isPlaying ? 'pause' : 'play'} size={18} color="#fff" />
+            }
+          </TouchableOpacity>
+          <View style={styles.audioTrack}>
+            <View style={[styles.audioTrackBg, { backgroundColor: C.outlineVariant }]}>
+              <View style={[styles.audioTrackFill, { backgroundColor: C.secondary, width: `${progressPct}%` }]} />
+            </View>
+            <View style={styles.audioTimestamps}>
+              <Text style={[styles.audioTime, { color: C.onSurfaceVariant }]}>{formatMs(audioPosition)}</Text>
+              <Text style={[styles.audioTime, { color: C.onSurfaceVariant }]}>{formatMs(audioDuration)}</Text>
+            </View>
+          </View>
+        </View>
+      )}
 
       {/* Tab bar */}
       <ScrollView
@@ -251,11 +534,7 @@ export default function DetailScreen() {
                 active && { backgroundColor: C.secondary + '1A', borderBottomColor: C.secondary, borderBottomWidth: 2 },
               ]}
               onPress={() => setActiveTab(tab.key)}>
-              <Ionicons
-                name={tab.icon as any}
-                size={16}
-                color={active ? C.secondary : C.onSurfaceVariant}
-              />
+              <Ionicons name={tab.icon as any} size={16} color={active ? C.secondary : C.onSurfaceVariant} />
               <Text style={[styles.tabLabel, { color: active ? C.secondary : C.onSurfaceVariant }]}>
                 {tab.label}
               </Text>
@@ -264,18 +543,21 @@ export default function DetailScreen() {
         })}
       </ScrollView>
 
-
       {/* Content */}
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+
         {/* ── TRANSCRIPT ────────────────────────────────── */}
         {activeTab === 'transcript' && (
           <View style={styles.section}>
-            {transcriptData.map((para, i) => (
-              <View key={i} style={styles.transcriptPara}>
-                <Text style={[styles.timestamp, { color: C.secondary }]}>{para.time}</Text>
-                <Text style={[styles.transcriptText, { color: C.onSurface }]}>{para.text}</Text>
-              </View>
-            ))}
+            {transcriptData.length === 0
+              ? <Text style={{ color: C.onSurfaceVariant, textAlign: 'center', marginTop: 40 }}>No transcript available yet.</Text>
+              : transcriptData.map((para: any, i: number) => (
+                <View key={i} style={styles.transcriptPara}>
+                  <Text style={[styles.timestamp, { color: C.secondary }]}>{para.time}</Text>
+                  <Text style={[styles.transcriptText, { color: C.onSurface }]}>{para.text}</Text>
+                </View>
+              ))
+            }
           </View>
         )}
 
@@ -288,7 +570,7 @@ export default function DetailScreen() {
                 AI-generated summary of {title}
               </Text>
             </View>
-            {summaryData.map((point, i) => (
+            {summaryData.map((point: string, i: number) => (
               <View key={i} style={[styles.summaryPoint, { backgroundColor: C.surfaceContainerLowest, borderColor: C.outlineVariant }]}>
                 <View style={[styles.bulletDot, { backgroundColor: C.secondary }]} />
                 <Text style={[styles.summaryText, { color: C.onSurface }]}>{point}</Text>
@@ -300,13 +582,13 @@ export default function DetailScreen() {
         {/* ── NOTES ──────────────────────────────────────── */}
         {activeTab === 'notes' && (
           <View style={styles.section}>
-            {notesData.map((sec, si) => (
+            {notesData.map((sec: any, si: number) => (
               <View key={si} style={styles.notesBlock}>
                 <View style={styles.notesSectionHeader}>
                   <View style={[styles.notesSectionDot, { backgroundColor: C.secondary }]} />
                   <Text style={[styles.notesSectionTitle, { color: C.primary }]}>{sec.title}</Text>
                 </View>
-                {sec.bullets.map((bullet, bi) => (
+                {(sec.bullets || []).map((bullet: string, bi: number) => (
                   <View key={bi} style={styles.noteBulletRow}>
                     <View style={[styles.noteBullet, { backgroundColor: C.outline }]} />
                     <Text style={[styles.noteBulletText, { color: C.onSurfaceVariant }]}>{bullet}</Text>
@@ -325,12 +607,47 @@ export default function DetailScreen() {
                 {flashcardsData.length} cards · Tap to flip
               </Text>
             </View>
-            {flashcardsData.map((card, i) => (
+            {flashcardsData.map((card: any, i: number) => (
               <View key={i} style={styles.flashCardWrap}>
                 <Text style={[styles.flashCardNum, { color: C.outline }]}>#{i + 1}</Text>
                 <FlipCard question={card.q} answer={card.a} C={C} />
               </View>
             ))}
+          </View>
+        )}
+
+        {/* ── QUIZ ───────────────────────────────────────── */}
+        {activeTab === 'quiz' && (
+          <View style={styles.section}>
+            {/* Score Banner */}
+            <View style={[styles.quizScoreBanner, { backgroundColor: C.primaryContainer }]}>
+              <MaterialIcons name="quiz" size={20} color={C.onPrimaryContainer} />
+              <Text style={[styles.quizScoreText, { color: C.onPrimaryContainer }]}>
+                {quizAnswered === 0
+                  ? `${quizData.length} questions · Select the correct answer`
+                  : `Score: ${quizCorrect} / ${quizAnswered} answered`}
+              </Text>
+            </View>
+            {quizData.length === 0 ? (
+              <Text style={{ color: C.onSurfaceVariant, textAlign: 'center', marginTop: 20 }}>
+                Quiz not available yet.
+              </Text>
+            ) : (
+              quizData.map((q: any, i: number) => (
+                <QuizCard
+                  key={i}
+                  question={q.question}
+                  options={q.options}
+                  correctIndex={q.correct_answer_index}
+                  questionNum={i + 1}
+                  C={C}
+                  onAnswer={(correct) => {
+                    setQuizAnswered((prev) => prev + 1);
+                    if (correct) setQuizCorrect((prev) => prev + 1);
+                  }}
+                />
+              ))
+            )}
           </View>
         )}
 
@@ -346,8 +663,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     height: 72,
-    paddingHorizontal: 16,
-    gap: 12,
+    paddingHorizontal: 12,
+    gap: 8,
     shadowColor: '#031635',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.04,
@@ -355,9 +672,42 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   backBtn: { padding: 4 },
-  appBarTitle: { fontSize: 16, fontWeight: '700', letterSpacing: -0.2 },
-  appBarSub: { fontSize: 12, marginTop: 1 },
-  shareBtn: { padding: 8 },
+  appBarTitle: { fontSize: 15, fontWeight: '700', letterSpacing: -0.2 },
+  appBarSub: { fontSize: 11, marginTop: 1 },
+  editTitleInput: {
+    fontSize: 15,
+    fontWeight: '700',
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    height: 38,
+  },
+  appBarActions: { flexDirection: 'row', gap: 2 },
+  iconBtn: { padding: 8 },
+
+  // Audio Player
+  audioPlayer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 12,
+    borderBottomWidth: 1,
+  },
+  audioPlayBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  audioTrack: { flex: 1 },
+  audioTrackBg: { height: 4, borderRadius: 2, overflow: 'hidden', marginBottom: 4 },
+  audioTrackFill: { height: '100%', borderRadius: 2 },
+  audioTimestamps: { flexDirection: 'row', justifyContent: 'space-between' },
+  audioTime: { fontSize: 10, fontWeight: '600' },
+
   tabBar: {
     paddingHorizontal: 16,
     gap: 4,
@@ -369,7 +719,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 14,
+    paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 8,
     marginRight: 4,
@@ -377,7 +727,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 2,
     borderBottomColor: 'transparent',
   },
-  tabLabel: { fontSize: 13, fontWeight: '600' },
+  tabLabel: { fontSize: 12, fontWeight: '600' },
   content: { paddingHorizontal: 20, paddingTop: 20 },
   section: { gap: 14 },
 
@@ -421,10 +771,7 @@ const styles = StyleSheet.create({
   flashCount: { fontSize: 13, fontWeight: '600' },
   flashCardWrap: { gap: 4 },
   flashCardNum: { fontSize: 11, fontWeight: '700', letterSpacing: 0.5 },
-  flipCardContainer: {
-    height: 180,
-    width: '100%',
-  },
+  flipCardContainer: { height: 180, width: '100%' },
   flipCardFace: {
     height: 180,
     borderRadius: 20,
@@ -449,4 +796,54 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   flipTapText: { fontSize: 11, color: 'rgba(255,255,255,0.7)', fontWeight: '600' },
+
+  // Quiz
+  quizScoreBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 4,
+  },
+  quizScoreText: { fontSize: 13, fontWeight: '600', flex: 1 },
+  quizCard: {
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    gap: 12,
+    shadowColor: '#031635',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  quizNum: { fontSize: 10, fontWeight: '700', letterSpacing: 0.8 },
+  quizQuestion: { fontSize: 15, fontWeight: '700', lineHeight: 22 },
+  quizOptions: { gap: 8 },
+  quizOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderRadius: 10,
+    padding: 12,
+    borderWidth: 1,
+  },
+  quizOptionBullet: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quizOptionText: { flex: 1, fontSize: 13, lineHeight: 18 },
+  quizResult: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 10,
+    borderRadius: 10,
+  },
+  quizResultText: { fontSize: 12, fontWeight: '700', flex: 1 },
 });
