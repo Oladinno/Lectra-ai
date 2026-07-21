@@ -1,5 +1,5 @@
-from sqlalchemy import Column, String, DateTime, JSON
-from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy import Column, String, DateTime, JSON, ForeignKey
+from sqlalchemy.orm import DeclarativeBase, relationship
 import uuid
 from datetime import datetime
 from pydantic import BaseModel
@@ -8,6 +8,16 @@ from typing import List, Optional, Any
 
 class Base(DeclarativeBase):
     pass
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    email = Column(String, nullable=False, unique=True, index=True)
+    hashed_password = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    lectures = relationship("Lecture", back_populates="user", cascade="all, delete-orphan")
 
 class Lecture(Base):
     __tablename__ = "lectures"
@@ -26,8 +36,29 @@ class Lecture(Base):
     flashcards = Column(JSON, nullable=True)  # Array of {q: str, a: str}
 
     created_at = Column(DateTime, default=datetime.utcnow)
+    
+    user_id = Column(String, ForeignKey("users.id"), nullable=True)
+    user = relationship("User", back_populates="lectures")
 
 # Pydantic Schemas
+class UserCreate(BaseModel):
+    email: str
+    password: str
+
+class UserLogin(BaseModel):
+    email: str
+    password: str
+
+class UserResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    email: str
+    created_at: datetime
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str
+
 class LectureBase(BaseModel):
     title: str
     audio_url: str
@@ -50,3 +81,4 @@ class LectureResponse(BaseModel):
     notes: Optional[List[Any]] = None
     flashcards: Optional[List[Any]] = None
     created_at: Optional[datetime] = None
+    user_id: Optional[str] = None

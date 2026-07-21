@@ -23,6 +23,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { API_BASE_URL } from '@/constants/api';
 import { logError } from '@/utils/logger';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAuth } from '@/app/context/auth';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -155,6 +156,7 @@ export default function DetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
 
+  const { token } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>('transcript');
   const [lecture, setLecture] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -167,7 +169,9 @@ export default function DetailScreen() {
 
     const fetchLecture = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/api/lectures/${id}`);
+        const response = await fetch(`${API_BASE_URL}/api/lectures/${id}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
         if (response.ok) {
           const data = await response.json();
           setLecture(data);

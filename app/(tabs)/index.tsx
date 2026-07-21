@@ -19,6 +19,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { API_BASE_URL } from '@/constants/api';
 import { logError } from '@/utils/logger';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAuth } from '@/app/context/auth';
 
 const RECENT_TRANSCRIPTS = [
   {
@@ -73,6 +74,7 @@ export default function HomeScreen() {
   const C = Colors[colorScheme ?? 'light'];
   const insets = useSafeAreaInsets();
 
+  const { token } = useAuth();
   const [lectures, setLectures] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
@@ -81,8 +83,11 @@ export default function HomeScreen() {
       let active = true;
 
       const fetchLectures = async () => {
+        if (!token) return;
         try {
-          const response = await fetch(`${API_BASE_URL}/api/lectures`);
+          const response = await fetch(`${API_BASE_URL}/api/lectures`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
           if (response.ok) {
             const data = await response.json();
             if (active) {

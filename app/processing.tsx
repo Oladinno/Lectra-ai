@@ -13,6 +13,7 @@ import { Colors } from '@/constants/theme';
 import { router, useLocalSearchParams } from 'expo-router';
 import { API_BASE_URL } from '@/constants/api';
 import { logError } from '@/utils/logger';
+import { useAuth } from '@/app/context/auth';
 
 const STEPS = [
   {
@@ -42,6 +43,7 @@ export default function ProcessingScreen() {
   const colorScheme = useColorScheme();
   const C = Colors[colorScheme ?? 'light'];
   
+  const { token } = useAuth();
   const { id } = useLocalSearchParams<{ id: string }>();
 
   const [stepIndex, setStepIndex] = useState(0);
@@ -119,7 +121,9 @@ export default function ProcessingScreen() {
 
     const checkStatus = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/api/lectures/${id}/status`);
+        const response = await fetch(`${API_BASE_URL}/api/lectures/${id}/status`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
         if (!response.ok) {
           throw new Error(`Server returned error status ${response.status}`);
         }

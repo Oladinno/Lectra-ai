@@ -22,6 +22,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { API_BASE_URL } from '@/constants/api';
 import { logError } from '@/utils/logger';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAuth } from '@/app/context/auth';
 
 const RECENT_UPLOADS = [
   {
@@ -49,6 +50,7 @@ export default function UploadScreen() {
   const C = Colors[colorScheme ?? 'light'];
   const insets = useSafeAreaInsets();
 
+  const { token } = useAuth();
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [fileName, setFileName] = useState('');
@@ -91,6 +93,9 @@ export default function UploadScreen() {
 
       const xhr = new XMLHttpRequest();
       xhr.open('POST', `${API_BASE_URL}/api/upload`);
+      if (token) {
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      }
       setActiveUploadXHR(xhr);
 
       // Track actual upload progress

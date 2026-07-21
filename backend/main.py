@@ -4,7 +4,7 @@ import shutil
 import tempfile
 import asyncio
 import traceback
-from fastapi import FastAPI, UploadFile, File, Form, Depends, BackgroundTasks, HTTPException, Request
+from fastapi import FastAPI, UploadFile, File, Form, Depends, BackgroundTasks, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
@@ -17,6 +17,7 @@ import storage
 import audio_processor
 import transcriber
 import ai_generator
+import auth
 from logger import logger
 
 app = FastAPI(title="LectureAI Backend API")
@@ -108,12 +109,65 @@ async def process_lecture_task(lecture_id: str, temp_file_path: str, db_session_
             pass
         db.close()
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Authentication Routes
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.post("/api/auth/register", response_model=models.TokenResponse)
+def register(user_data: models.UserCreate, db: Session = Depends(database.get_db)):
+    """
+    Registers a new user, hashes their password, and returns a JWT access token.
+    """
+    # Check if email already exists
+    existing_user = db.query(models.User).filter(models.User.email == user_data.email).first()
+    if existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A user with this email already exists."
+        )
+        
+    hashed_pwd = auth.hash_password(user_data.password)
+    new_user = models.User(
+        email=user_data.email,
+        hashed_password=hashed_pwd
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    
+    access_token = auth.create_access_token(user_id=new_user.id)
+    return {"access_token": access_token, "token_type": "bearer"}
+
+@app.post("/api/auth/login", response_model=models.TokenResponse)
+def login(user_data: models.UserLogin, db: Session = Depends(database.get_db)):
+    """
+    Authenticates user credentials and returns a JWT access token.
+    """
+    user = db.query(models.User).filter(models.User.email == user_data.email).first()
+    if not user or not auth.verify_password(user_data.password, user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+        
+    access_token = auth.create_access_token(user_id=user.id)
+    return {"access_token": access_token, "token_type": "bearer"}
+
+@app.get("/api/auth/me", response_model=models.UserResponse)
+def get_current_user_profile(current_user: models.User = Depends(auth.get_current_user)):
+    """
+    Returns the currently logged in user's profile details.
+    """
+    return current_user
+
 @app.post("/api/upload", response_model=models.LectureResponse)
 async def upload_lecture(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     title: str = Form("Untitled Lecture"),
-    db: Session = Depends(database.get_db)
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(auth.get_current_user)
 ):
     """
     Accepts audio file form upload. Uploads to Supabase, registers in Neon DB, 
@@ -143,11 +197,12 @@ async def upload_lecture(
             os.remove(temp_file_path)
         raise HTTPException(status_code=500, detail=f"Storage upload error: {str(e)}")
         
-    # Create lecture record in database
+    # Create lecture record in database linked to user
     lecture = models.Lecture(
         title=title,
         audio_url=audio_url,
-        status="pending"
+        status="pending",
+        user_id=current_user.id
     )
     db.add(lecture)
     db.commit()
@@ -164,28 +219,39 @@ async def upload_lecture(
     return lecture
 
 @app.get("/api/lectures", response_model=List[models.LectureResponse])
-def get_lectures(db: Session = Depends(database.get_db)):
+def get_lectures(
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
     """
-    List all lectures in descending chronological order.
+    List all lectures belonging to the logged-in user in descending chronological order.
     """
-    return db.query(models.Lecture).order_by(models.Lecture.created_at.desc()).all()
+    return db.query(models.Lecture).filter(models.Lecture.user_id == current_user.id).order_by(models.Lecture.created_at.desc()).all()
 
 @app.get("/api/lectures/{lecture_id}", response_model=models.LectureResponse)
-def get_lecture(lecture_id: str, db: Session = Depends(database.get_db)):
+def get_lecture(
+    lecture_id: str, 
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
     """
     Retrieve full lecture data by ID.
     """
-    lecture = db.query(models.Lecture).filter(models.Lecture.id == lecture_id).first()
+    lecture = db.query(models.Lecture).filter(models.Lecture.id == lecture_id, models.Lecture.user_id == current_user.id).first()
     if not lecture:
         raise HTTPException(status_code=404, detail="Lecture not found")
     return lecture
 
 @app.get("/api/lectures/{lecture_id}/status")
-def get_lecture_status(lecture_id: str, db: Session = Depends(database.get_db)):
+def get_lecture_status(
+    lecture_id: str, 
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
     """
     Lightweight endpoint to poll processing status.
     """
-    lecture = db.query(models.Lecture).filter(models.Lecture.id == lecture_id).first()
+    lecture = db.query(models.Lecture).filter(models.Lecture.id == lecture_id, models.Lecture.user_id == current_user.id).first()
     if not lecture:
         raise HTTPException(status_code=404, detail="Lecture not found")
     return {

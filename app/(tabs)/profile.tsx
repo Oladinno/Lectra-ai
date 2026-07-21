@@ -11,6 +11,7 @@ import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAuth } from '@/app/context/auth';
 
 const STATS = [
   { label: 'Lectures', value: '24' },
@@ -31,6 +32,10 @@ export default function ProfileScreen() {
   const colorScheme = useColorScheme();
   const C = Colors[colorScheme ?? 'light'];
   const insets = useSafeAreaInsets();
+  const { user, signOut } = useAuth();
+  
+  const displayEmail = user?.email || 'alex.johnson@university.edu';
+  const displayName = displayEmail.split('@')[0];
 
   return (
     <View style={[styles.root, { backgroundColor: C.background }]}>
@@ -44,8 +49,8 @@ export default function ProfileScreen() {
           <View style={[styles.avatarCircle, { backgroundColor: C.secondary }]}>
             <Ionicons name="person" size={36} color="#FFFFFF" />
           </View>
-          <Text style={[styles.profileName, { color: C.onPrimary }]}>Alex Johnson</Text>
-          <Text style={[styles.profileEmail, { color: C.onPrimaryContainer }]}>alex.johnson@university.edu</Text>
+          <Text style={[styles.profileName, { color: C.onPrimary }]}>{displayName}</Text>
+          <Text style={[styles.profileEmail, { color: C.onPrimaryContainer }]}>{displayEmail}</Text>
           <View style={[styles.planBadge, { backgroundColor: C.secondary + '33' }]}>
             <MaterialIcons name="auto-awesome" size={14} color={C.secondaryFixedDim} />
             <Text style={[styles.planBadgeText, { color: C.secondaryFixedDim }]}>Pro Plan · 84% Credits</Text>
@@ -92,7 +97,7 @@ export default function ProfileScreen() {
         </View>
 
         {/* Sign out */}
-        <TouchableOpacity style={[styles.signOutBtn, { borderColor: C.error + '66' }]}>
+        <TouchableOpacity style={[styles.signOutBtn, { borderColor: C.error + '66' }]} onPress={signOut}>
           <Ionicons name="log-out-outline" size={20} color={C.error} />
           <Text style={[styles.signOutText, { color: C.error }]}>Sign Out</Text>
         </TouchableOpacity>

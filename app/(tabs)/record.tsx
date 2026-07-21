@@ -18,6 +18,7 @@ import { Audio } from 'expo-av';
 import { API_BASE_URL } from '@/constants/api';
 import { logError } from '@/utils/logger';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAuth } from '@/app/context/auth';
 
 type RecordingState = 'idle' | 'recording' | 'paused';
 
@@ -32,6 +33,7 @@ export default function RecordScreen() {
   const C = Colors[colorScheme ?? 'light'];
   const insets = useSafeAreaInsets();
 
+  const { token } = useAuth();
   const [state, setState] = useState<RecordingState>('idle');
   const [elapsed, setElapsed] = useState(0);
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
@@ -174,6 +176,7 @@ export default function RecordScreen() {
         body: formData,
         headers: {
           'Accept': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : '',
         },
       });
 
