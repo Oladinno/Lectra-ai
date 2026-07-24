@@ -20,7 +20,7 @@ import ai_generator
 import auth
 from logger import logger
 
-app = FastAPI(title="LectureAI Backend API")
+app = FastAPI(title="LecVoice AI Backend API")
 
 # Configure CORS so the mobile app can connect
 app.add_middleware(

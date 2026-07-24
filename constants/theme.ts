@@ -1,5 +1,5 @@
 /**
- * LectureAI Design System Colors
+ * LecVoice AI Design System Colors
  * Matches the design tokens from the HTML mockups.
  */
 

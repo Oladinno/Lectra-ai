@@ -89,7 +89,7 @@ export default function SignInScreen() {
           <View style={[styles.logoIconBg, { backgroundColor: C.primary }]}>
             <Ionicons name="school" size={40} color={C.onPrimary} />
           </View>
-          <Text style={[styles.brandName, { color: C.primary }]}>LectureAI</Text>
+          <Text style={[styles.brandName, { color: C.primary }]}>LecVoice AI</Text>
           <Text style={[styles.subtitle, { color: C.onSurfaceVariant }]}>
             Your academic notes, summaries, and flashcards, powered by AI.
           </Text>
