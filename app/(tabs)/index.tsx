@@ -4,15 +4,12 @@ import {
   Text,
   ScrollView,
   StyleSheet,
-  TouchableOpacity,
   Pressable,
   StatusBar,
-  Platform,
-  Image,
   Alert,
   ActivityIndicator,
 } from 'react-native';
-import { Ionicons, MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
 import { router, useFocusEffect } from 'expo-router';
@@ -21,62 +18,23 @@ import { logError } from '@/utils/logger';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/app/context/auth';
 
-const RECENT_TRANSCRIPTS = [
-  {
-    id: '1',
-    title: 'Computer Science 101',
-    meta: 'Sept 12 · 45 mins · 98% Accuracy',
-    accentColor: '#4648d4',
-    status: 'completed',
-  },
-  {
-    id: '2',
-    title: 'History of Art',
-    meta: 'Sept 11 · 52 mins · 95% Accuracy',
-    accentColor: '#6063EE',
-    status: 'completed',
-  },
-  {
-    id: '3',
-    title: 'Macroeconomics 202',
-    meta: 'Sept 10 · 38 mins · 99% Accuracy',
-    accentColor: '#6BD8CB',
-    status: 'completed',
-  },
-];
-
-const QUICK_INSIGHTS = [
-  {
-    id: '1',
-    label: 'Generate Flashcards for CS101',
-    icon: 'help-circle-outline' as const,
-    bg: '#6063EE',
-    fg: '#FFFBFF',
-  },
-  {
-    id: '2',
-    label: 'Summarize Art History week 2',
-    icon: 'document-text-outline' as const,
-    bg: '#1A2B4B',
-    fg: '#8293B8',
-  },
-  {
-    id: '3',
-    label: 'Connect Economics with History',
-    icon: 'git-merge-outline' as const,
-    bg: '#E6E8EA',
-    fg: '#031635',
-  },
-];
-
 export default function HomeScreen() {
   const colorScheme = useColorScheme();
   const C = Colors[colorScheme ?? 'light'];
   const insets = useSafeAreaInsets();
 
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [lectures, setLectures] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+
+  const completedLectures = lectures.filter((l: any) => l.status === 'completed');
+  const totalFlashcards = completedLectures.reduce((sum: number, l: any) => sum + (l.flashcards?.length || 0), 0);
+  const totalDurationSec = completedLectures.reduce((sum: number, l: any) => {
+    if (!l.duration) return sum;
+    const parts = l.duration.split(':').map(Number);
+    return sum + (parts.length === 3 ? parts[0] * 3600 + parts[1] * 60 + parts[2] : parts[0] * 60 + parts[1]);
+  }, 0);
+  const hoursSaved = (totalDurationSec / 3600 * 2).toFixed(1);
 
   useFocusEffect(
     useCallback(() => {
@@ -96,7 +54,6 @@ export default function HomeScreen() {
           }
         } catch (error) {
           logError(error, 'Dashboard/fetchLectures');
-          console.error("Error fetching lectures list:", error);
         } finally {
           if (active) setLoading(false);
         }
@@ -106,7 +63,7 @@ export default function HomeScreen() {
       return () => {
         active = false;
       };
-    }, [])
+    }, [token])
   );
 
   const handlePressLecture = (item: any) => {
@@ -142,9 +99,9 @@ export default function HomeScreen() {
         <View style={[styles.heroCard, { backgroundColor: C.primary }]}>
           <View>
             <Text style={[styles.heroLabel, { color: C.primaryFixedDim }]}>DASHBOARD</Text>
-            <Text style={[styles.heroTitle, { color: C.onPrimary }]}>Welcome back, Alex!</Text>
+            <Text style={[styles.heroTitle, { color: C.onPrimary }]}>Welcome back, {user?.email?.split('@')[0] || 'Student'}!</Text>
             <Text style={[styles.heroSubtitle, { color: C.onPrimaryContainer }]}>
-              You have {lectures.length > 0 ? lectures.length : 3} lectures processed.{'\n'}Ready for the next one?
+              You have {lectures.length} lecture{lectures.length !== 1 ? 's' : ''} processed.{'\n'}Ready for the next one?
             </Text>
           </View>
           {/* Decorative glow */}
@@ -155,13 +112,18 @@ export default function HomeScreen() {
         <View style={styles.statsRow}>
           <View style={[styles.statCard, { backgroundColor: C.surfaceContainerLowest, borderColor: C.surfaceContainer }]}>
             <MaterialIcons name="auto-awesome" size={22} color={C.secondary} />
-            <Text style={[styles.statLabel, { color: C.onSurfaceVariant }]}>AI Credits</Text>
-            <Text style={[styles.statValue, { color: C.primary }]}>84%</Text>
+            <Text style={[styles.statLabel, { color: C.onSurfaceVariant }]}>Lectures</Text>
+            <Text style={[styles.statValue, { color: C.primary }]}>{completedLectures.length}</Text>
           </View>
           <View style={[styles.statCard, { backgroundColor: C.surfaceContainerLowest, borderColor: C.surfaceContainer }]}>
             <Ionicons name="time-outline" size={22} color={C.secondary} />
             <Text style={[styles.statLabel, { color: C.onSurfaceVariant }]}>Hours Saved</Text>
-            <Text style={[styles.statValue, { color: C.primary }]}>12.5h</Text>
+            <Text style={[styles.statValue, { color: C.primary }]}>{hoursSaved}h</Text>
+          </View>
+          <View style={[styles.statCard, { backgroundColor: C.surfaceContainerLowest, borderColor: C.surfaceContainer }]}>
+            <Ionicons name="layers-outline" size={22} color={C.secondary} />
+            <Text style={[styles.statLabel, { color: C.onSurfaceVariant }]}>Flashcards</Text>
+            <Text style={[styles.statValue, { color: C.primary }]}>{totalFlashcards}</Text>
           </View>
         </View>
 
@@ -169,83 +131,66 @@ export default function HomeScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={[styles.sectionTitle, { color: C.primary }]}>Recent Transcripts</Text>
-            {lectures.length === 0 && (
-              <TouchableOpacity>
-                <Text style={[styles.sectionLink, { color: C.secondary }]}>View All</Text>
-              </TouchableOpacity>
-            )}
           </View>
 
-          <View style={styles.cardList}>
-            {(lectures.length > 0 ? lectures : RECENT_TRANSCRIPTS).map((item) => {
-              const isProcessing = item.status === 'pending' || item.status === 'processing';
-              const isFailed = item.status === 'failed';
-              
-              const createdDate = item.created_at 
-                ? new Date(item.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) 
-                : 'Sept 12';
-              const duration = item.duration || (isProcessing ? 'Processing...' : '45 mins');
-              const accuracy = item.accuracy || (isProcessing ? '' : '98% Accuracy');
-              
-              let meta = item.meta || `${createdDate} · ${duration}`;
-              if (accuracy && !isProcessing) {
-                meta += ` · ${accuracy}`;
-              }
+          {loading ? (
+            <ActivityIndicator size="large" color={C.secondary} style={{ marginVertical: 20 }} />
+          ) : lectures.length === 0 ? (
+            <Text style={{ color: C.onSurfaceVariant, textAlign: 'center', marginTop: 10 }}>
+              No lectures yet. Record or upload one to get started!
+            </Text>
+          ) : (
+            <View style={styles.cardList}>
+              {lectures.map((item) => {
+                const isProcessing = item.status === 'pending' || item.status === 'processing';
+                const isFailed = item.status === 'failed';
 
-              const accent = item.accentColor || (isFailed ? C.error : isProcessing ? C.secondary : C.tertiaryFixedDim);
+                const createdDate = item.created_at
+                  ? new Date(item.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+                  : '';
+                const parts: string[] = [createdDate];
+                if (item.duration) parts.push(item.duration);
+                if (item.accuracy && !isProcessing) parts.push(item.accuracy);
+                const meta = parts.filter(Boolean).join(' · ');
 
-              return (
-                <Pressable
-                  key={item.id}
-                  style={({ pressed }) => [
-                    styles.transcriptCard,
-                    { backgroundColor: C.surfaceContainerLowest, opacity: pressed ? 0.92 : 1 },
-                  ]}
-                  onPress={() => handlePressLecture(item)}
-                  android_ripple={{ color: C.surfaceContainer }}>
-                  <View style={[styles.indicator, { backgroundColor: accent }]} />
-                  <View style={styles.transcriptInfo}>
-                    <Text style={[styles.transcriptTitle, { color: C.primary }]} numberOfLines={1}>{item.title}</Text>
-                    <Text style={[styles.transcriptMeta, { color: C.onSurfaceVariant }]}>{meta}</Text>
-                  </View>
-                  
-                  {isProcessing && (
-                    <View style={[styles.badge, { backgroundColor: C.secondary + '18', marginRight: 6 }]}>
-                      <ActivityIndicator size="small" color={C.secondary} style={{ marginRight: 4 }} />
-                      <Text style={[styles.badgeText, { color: C.secondary }]}>AI</Text>
+                const accent = isFailed ? C.error : isProcessing ? C.secondary : C.tertiaryFixedDim;
+
+                return (
+                  <Pressable
+                    key={item.id}
+                    style={({ pressed }) => [
+                      styles.transcriptCard,
+                      { backgroundColor: C.surfaceContainerLowest, opacity: pressed ? 0.92 : 1 },
+                    ]}
+                    onPress={() => handlePressLecture(item)}
+                    android_ripple={{ color: C.surfaceContainer }}>
+                    <View style={[styles.indicator, { backgroundColor: accent }]} />
+                    <View style={styles.transcriptInfo}>
+                      <Text style={[styles.transcriptTitle, { color: C.primary }]} numberOfLines={1}>{item.title}</Text>
+                      {meta ? <Text style={[styles.transcriptMeta, { color: C.onSurfaceVariant }]}>{meta}</Text> : null}
                     </View>
-                  )}
-                  {isFailed && (
-                    <View style={[styles.badge, { backgroundColor: C.error + '18', marginRight: 6 }]}>
-                      <Text style={[styles.badgeText, { color: C.error }]}>Failed</Text>
-                    </View>
-                  )}
-                  
-                  <Ionicons name="chevron-forward" size={20} color={C.outline} />
-                </Pressable>
-              );
-            })}
-          </View>
+
+                    {isProcessing && (
+                      <View style={[styles.badge, { backgroundColor: C.secondary + '18', marginRight: 6 }]}>
+                        <ActivityIndicator size="small" color={C.secondary} style={{ marginRight: 4 }} />
+                        <Text style={[styles.badgeText, { color: C.secondary }]}>AI</Text>
+                      </View>
+                    )}
+                    {isFailed && (
+                      <View style={[styles.badge, { backgroundColor: C.error + '18', marginRight: 6 }]}>
+                        <Text style={[styles.badgeText, { color: C.error }]}>Failed</Text>
+                      </View>
+                    )}
+
+                    <Ionicons name="chevron-forward" size={20} color={C.outline} />
+                  </Pressable>
+                );
+              })}
+            </View>
+          )}
         </View>
 
-        {/* Quick AI Insights */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: C.primary }]}>Quick AI Insights</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.insightScroll}>
-            {QUICK_INSIGHTS.map((item) => (
-              <TouchableOpacity
-                key={item.id}
-                style={[styles.insightCard, { backgroundColor: item.bg }]}
-                activeOpacity={0.85}>
-                <Ionicons name={item.icon} size={26} color={item.fg} />
-                <Text style={[styles.insightLabel, { color: item.fg }]}>{item.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
+
 
         <View style={{ height: 100 }} />
       </ScrollView>
@@ -338,7 +283,6 @@ const styles = StyleSheet.create({
   section: { marginBottom: 32 },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
   sectionTitle: { fontSize: 18, fontWeight: '700', letterSpacing: -0.2 },
-  sectionLink: { fontSize: 12, fontWeight: '600', letterSpacing: 0.4 },
   cardList: { gap: 12 },
   transcriptCard: {
     flexDirection: 'row',
@@ -356,15 +300,6 @@ const styles = StyleSheet.create({
   transcriptInfo: { flex: 1 },
   transcriptTitle: { fontSize: 16, fontWeight: '600', marginBottom: 3 },
   transcriptMeta: { fontSize: 13 },
-  insightScroll: { paddingRight: 20, gap: 14 },
-  insightCard: {
-    width: 180,
-    height: 120,
-    borderRadius: 20,
-    padding: 16,
-    justifyContent: 'space-between',
-  },
-  insightLabel: { fontSize: 12, fontWeight: '700', letterSpacing: 0.3, lineHeight: 18 },
   badge: {
     paddingHorizontal: 8,
     paddingVertical: 3,

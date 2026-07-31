@@ -67,7 +67,10 @@ async def process_lecture_task(lecture_id: str, temp_file_path: str, db_session_
             print(f"[{lecture_id}] Transcribing {len(chunk_paths)} chunks in parallel on Groq...")
             transcriptions = await transcriber.transcribe_all_chunks(chunk_paths)
             
-            # 5. Merge transcripts
+            # 5. Compute confidence score from Whisper segment logprobs
+            lecture.accuracy = transcriber.compute_accuracy(transcriptions, chunk_minutes=10)
+
+            # 6. Merge transcripts
             print(f"[{lecture_id}] Merging transcripts...")
             merged_paragraphs = transcriber.merge_transcripts(transcriptions, chunk_minutes=10)
             lecture.transcript = merged_paragraphs
@@ -83,7 +86,6 @@ async def process_lecture_task(lecture_id: str, temp_file_path: str, db_session_
             lecture.notes = insights.get("notes", [])
             lecture.flashcards = insights.get("flashcards", [])
             lecture.quiz = insights.get("quiz", [])
-            lecture.accuracy = "98%"  # Whisper API transcription accuracy
             lecture.status = "completed"
             db.commit()
             print(f"[{lecture_id}] Lecture processing completed successfully.")

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,8 +8,9 @@ import {
   Pressable,
   Alert,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
-import { Ionicons, MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -17,33 +18,12 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
 import { API_BASE_URL } from '@/constants/api';
 import { logError } from '@/utils/logger';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/app/context/auth';
-
-const RECENT_UPLOADS = [
-  {
-    id: '1',
-    title: 'Microeconomics L04',
-    meta: 'Oct 24 · 45:12',
-    status: 'Processed',
-  },
-  {
-    id: '2',
-    title: 'Advanced Calculus - Series',
-    meta: 'Oct 22 · 58:30',
-    status: 'Processed',
-  },
-  {
-    id: '3',
-    title: 'Organic Chemistry 3',
-    meta: 'Oct 20 · 1:02:14',
-    status: 'Processed',
-  },
-];
 
 export default function UploadScreen() {
   const colorScheme = useColorScheme();
@@ -55,6 +35,32 @@ export default function UploadScreen() {
   const [progress, setProgress] = useState(0);
   const [fileName, setFileName] = useState('');
   const [activeUploadXHR, setActiveUploadXHR] = useState<XMLHttpRequest | null>(null);
+  const [recentUploads, setRecentUploads] = useState<any[]>([]);
+  const [uploadsLoading, setUploadsLoading] = useState(true);
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      const fetchRecent = async () => {
+        if (!token) return;
+        try {
+          const res = await fetch(`${API_BASE_URL}/api/lectures`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (active) setRecentUploads(data.slice(0, 5));
+          }
+        } catch {
+          // silently fail
+        } finally {
+          if (active) setUploadsLoading(false);
+        }
+      };
+      fetchRecent();
+      return () => { active = false; };
+    }, [token])
+  );
 
   const progressWidth = useSharedValue(0);
   const progressStyle = useAnimatedStyle(() => ({
@@ -226,35 +232,46 @@ export default function UploadScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={[styles.sectionTitle, { color: C.primary }]}>Recent Uploads</Text>
-            <TouchableOpacity>
-              <Text style={[styles.sectionLink, { color: C.secondary }]}>View All</Text>
-            </TouchableOpacity>
           </View>
 
-          <View style={styles.uploadList}>
-            {RECENT_UPLOADS.map((item) => (
-              <Pressable
-                key={item.id}
-                style={({ pressed }) => [
-                  styles.uploadItem,
-                  { backgroundColor: C.surfaceContainerLowest, borderColor: C.outlineVariant, opacity: pressed ? 0.9 : 1 },
-                ]}
-                onPress={() => router.push('/detail')}
-                android_ripple={{ color: C.surfaceContainer }}>
-                <View style={[styles.uploadIcon, { backgroundColor: C.surfaceContainerHigh }]}>
-                  <Ionicons name="document-text-outline" size={22} color={C.primary} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.uploadTitle, { color: C.primary }]}>{item.title}</Text>
-                  <Text style={[styles.uploadMeta, { color: C.onSurfaceVariant }]}>{item.meta}</Text>
-                </View>
-                <View style={[styles.badge, { backgroundColor: C.tertiaryFixedDim + '44' }]}>
-                  <Text style={[styles.badgeText, { color: C.onTertiaryFixedVariant }]}>{item.status}</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color={C.outline} />
-              </Pressable>
-            ))}
-          </View>
+          {uploadsLoading ? (
+            <ActivityIndicator size="small" color={C.secondary} style={{ marginVertical: 10 }} />
+          ) : recentUploads.length === 0 ? (
+            <Text style={{ color: C.onSurfaceVariant, fontSize: 13, textAlign: 'center', marginTop: 4 }}>
+              No uploads yet. Pick a file above to get started!
+            </Text>
+          ) : (
+            <View style={styles.uploadList}>
+              {recentUploads.map((item) => {
+                const createdDate = item.created_at
+                  ? new Date(item.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+                  : '';
+                const badgeColor = item.status === 'completed' ? C.tertiaryFixedDim : item.status === 'failed' ? C.error : C.secondary;
+                return (
+                  <Pressable
+                    key={item.id}
+                    style={({ pressed }) => [
+                      styles.uploadItem,
+                      { backgroundColor: C.surfaceContainerLowest, borderColor: C.outlineVariant, opacity: pressed ? 0.9 : 1 },
+                    ]}
+                    onPress={() => router.push(item.status === 'completed' ? { pathname: '/detail', params: { id: item.id } } : { pathname: '/processing', params: { id: item.id } })}
+                    android_ripple={{ color: C.surfaceContainer }}>
+                    <View style={[styles.uploadIcon, { backgroundColor: C.surfaceContainerHigh }]}>
+                      <Ionicons name="document-text-outline" size={22} color={C.primary} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.uploadTitle, { color: C.primary }]}>{item.title}</Text>
+                      <Text style={[styles.uploadMeta, { color: C.onSurfaceVariant }]}>{createdDate}{item.duration ? ` · ${item.duration}` : ''}</Text>
+                    </View>
+                    <View style={[styles.badge, { backgroundColor: badgeColor + '44' }]}>
+                      <Text style={[styles.badgeText, { color: badgeColor }]}>{item.status}</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={18} color={C.outline} />
+                  </Pressable>
+                );
+              })}
+            </View>
+          )}
         </View>
 
         <View style={{ height: 110 }} />

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,36 +6,75 @@ import {
   ScrollView,
   TouchableOpacity,
   Switch,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/app/context/auth';
-
-const STATS = [
-  { label: 'Lectures', value: '24' },
-  { label: 'Hours Saved', value: '12.5h' },
-  { label: 'Flashcards', value: '342' },
-];
-
-const SETTINGS = [
-  { icon: 'notifications-outline' as const, label: 'Notifications' },
-  { icon: 'language-outline' as const, label: 'Language' },
-  { icon: 'moon-outline' as const, label: 'Dark Mode', toggle: true },
-  { icon: 'cloud-download-outline' as const, label: 'Auto-Download Results' },
-  { icon: 'shield-checkmark-outline' as const, label: 'Privacy Policy' },
-  { icon: 'help-circle-outline' as const, label: 'Help & Support' },
-];
+import { useFocusEffect } from 'expo-router';
+import { API_BASE_URL } from '@/constants/api';
+import { logError } from '@/utils/logger';
 
 export default function ProfileScreen() {
   const colorScheme = useColorScheme();
   const C = Colors[colorScheme ?? 'light'];
   const insets = useSafeAreaInsets();
-  const { user, signOut } = useAuth();
-  
-  const displayEmail = user?.email || 'alex.johnson@university.edu';
-  const displayName = displayEmail.split('@')[0];
+  const { user, token, signOut } = useAuth();
+
+  const [lectures, setLectures] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [darkMode, setDarkMode] = useState(colorScheme === 'dark');
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      const fetchLectures = async () => {
+        if (!token) return;
+        try {
+          const res = await fetch(`${API_BASE_URL}/api/lectures`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (active) setLectures(data);
+          }
+        } catch (e) {
+          logError(e, 'Profile/fetchLectures');
+        } finally {
+          if (active) setLoading(false);
+        }
+      };
+      fetchLectures();
+      return () => { active = false; };
+    }, [token])
+  );
+
+  const completed = lectures.filter((l: any) => l.status === 'completed');
+  const totalFlashcards = completed.reduce((sum: number, l: any) => sum + (l.flashcards?.length || 0), 0);
+  const totalDurationSec = completed.reduce((sum: number, l: any) => {
+    if (!l.duration) return sum;
+    const parts = l.duration.split(':').map(Number);
+    return sum + (parts.length === 3 ? parts[0] * 3600 + parts[1] * 60 + parts[2] : parts[0] * 60 + parts[1]);
+  }, 0);
+  const hoursSaved = (totalDurationSec / 3600 * 2).toFixed(1);
+
+  const STATS = [
+    { label: 'Lectures', value: String(completed.length) },
+    { label: 'Hours Saved', value: `${hoursSaved}h` },
+    { label: 'Flashcards', value: String(totalFlashcards) },
+  ];
+
+  const settingsActions: Record<string, () => void> = {
+    'Notifications': () => Alert.alert('Notifications', 'Notification settings coming soon.'),
+    'Language': () => Alert.alert('Language', 'Language selection coming soon.'),
+    'Dark Mode': () => setDarkMode((prev) => !prev),
+    'Auto-Download Results': () => Alert.alert('Auto-Download', 'Auto-download settings coming soon.'),
+    'Privacy Policy': () => Alert.alert('Privacy Policy', 'View our privacy policy at lectra-ai.com/privacy'),
+    'Help & Support': () => Alert.alert('Help & Support', 'Contact us at support@lectra-ai.com'),
+  };
 
   return (
     <View style={[styles.root, { backgroundColor: C.background }]}>
@@ -49,30 +88,41 @@ export default function ProfileScreen() {
           <View style={[styles.avatarCircle, { backgroundColor: C.secondary }]}>
             <Ionicons name="person" size={36} color="#FFFFFF" />
           </View>
-          <Text style={[styles.profileName, { color: C.onPrimary }]}>{displayName}</Text>
-          <Text style={[styles.profileEmail, { color: C.onPrimaryContainer }]}>{displayEmail}</Text>
-          <View style={[styles.planBadge, { backgroundColor: C.secondary + '33' }]}>
-            <MaterialIcons name="auto-awesome" size={14} color={C.secondaryFixedDim} />
-            <Text style={[styles.planBadgeText, { color: C.secondaryFixedDim }]}>Pro Plan · 84% Credits</Text>
-          </View>
+          <Text style={[styles.profileName, { color: C.onPrimary }]}>{user?.email?.split('@')[0] || 'Student'}</Text>
+          <Text style={[styles.profileEmail, { color: C.onPrimaryContainer }]}>{user?.email || ''}</Text>
           <View style={styles.heroGlow} />
         </View>
 
         {/* Stats row */}
-        <View style={styles.statsRow}>
-          {STATS.map((stat) => (
-            <View key={stat.label} style={[styles.statCard, { backgroundColor: C.surfaceContainerLowest, borderColor: C.surfaceContainer }]}>
-              <Text style={[styles.statValue, { color: C.primary }]}>{stat.value}</Text>
-              <Text style={[styles.statLabel, { color: C.onSurfaceVariant }]}>{stat.label}</Text>
-            </View>
-          ))}
-        </View>
+        {loading ? (
+          <ActivityIndicator size="large" color={C.secondary} style={{ marginVertical: 20 }} />
+        ) : (
+          <View style={styles.statsRow}>
+            {STATS.map((stat) => (
+              <View key={stat.label} style={[styles.statCard, { backgroundColor: C.surfaceContainerLowest, borderColor: C.surfaceContainer }]}>
+                <Text style={[styles.statValue, { color: C.primary }]}>{stat.value}</Text>
+                <Text style={[styles.statLabel, { color: C.onSurfaceVariant }]}>{stat.label}</Text>
+              </View>
+            ))}
+          </View>
+        )}
 
         {/* Settings */}
         <View style={[styles.settingsCard, { backgroundColor: C.surfaceContainerLowest, borderColor: C.outlineVariant }]}>
-          {SETTINGS.map((item, index) => (
+          {[
+            { icon: 'notifications-outline' as const, label: 'Notifications' },
+            { icon: 'language-outline' as const, label: 'Language' },
+            { icon: 'moon-outline' as const, label: 'Dark Mode', toggle: true },
+            { icon: 'cloud-download-outline' as const, label: 'Auto-Download Results' },
+            { icon: 'shield-checkmark-outline' as const, label: 'Privacy Policy' },
+            { icon: 'help-circle-outline' as const, label: 'Help & Support' },
+          ].map((item, index) => (
             <React.Fragment key={item.label}>
-              <View style={styles.settingRow}>
+              <TouchableOpacity
+                style={styles.settingRow}
+                onPress={() => settingsActions[item.label]?.()}
+                activeOpacity={item.toggle ? 1 : 0.6}
+              >
                 <View style={[styles.settingIconBg, { backgroundColor: C.secondary + '18' }]}>
                   <Ionicons name={item.icon} size={18} color={C.secondary} />
                 </View>
@@ -82,14 +132,15 @@ export default function ProfileScreen() {
                     <Switch
                       trackColor={{ false: C.outlineVariant, true: C.secondary }}
                       thumbColor={C.onPrimary}
-                      value={false}
+                      value={darkMode}
+                      onValueChange={() => setDarkMode((prev) => !prev)}
                     />
                   ) : (
                     <Ionicons name="chevron-forward" size={18} color={C.outline} />
                   )}
                 </View>
-              </View>
-              {index < SETTINGS.length - 1 && (
+              </TouchableOpacity>
+              {index < 5 && (
                 <View style={[styles.divider, { backgroundColor: C.outlineVariant }]} />
               )}
             </React.Fragment>

@@ -1,4 +1,5 @@
 import os
+import math
 import asyncio
 import httpx
 from config import settings
@@ -55,6 +56,39 @@ async def transcribe_all_chunks(chunk_paths: list[str]) -> list[dict]:
         # Sort results chronologically
         results.sort(key=lambda x: x["chunk_idx"])
         return [r["data"] for r in results]
+
+def compute_accuracy(transcriptions: list[dict], chunk_minutes: int = 10) -> str:
+    """
+    Computes a confidence percentage from Whisper segment-level avg_logprob values.
+    Uses exp(avg_logprob) weighted by segment duration.
+    """
+    all_logprobs = []
+    all_durations = []
+    chunk_seconds = chunk_minutes * 60
+
+    for idx, data in enumerate(transcriptions):
+        offset = idx * chunk_seconds
+        segments = data.get("segments", [])
+        for seg in segments:
+            logprob = seg.get("avg_logprob")
+            if logprob is not None:
+                start = seg.get("start", 0) + offset
+                end = seg.get("end", 0) + offset
+                duration = end - start
+                all_logprobs.append(logprob)
+                all_durations.append(duration)
+
+    if not all_logprobs:
+        return ""
+
+    total_duration = sum(all_durations)
+    if total_duration == 0:
+        weighted_avg = sum(all_logprobs) / len(all_logprobs)
+    else:
+        weighted_avg = sum(l * d for l, d in zip(all_logprobs, all_durations)) / total_duration
+
+    confidence = max(0.0, min(100.0, math.exp(weighted_avg) * 100))
+    return f"{confidence:.0f}%"
 
 def merge_transcripts(transcriptions: list[dict], chunk_minutes: int = 10) -> list[dict]:
     """
