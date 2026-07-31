@@ -358,7 +358,7 @@ export default function DetailScreen() {
     `;
     try {
       const { uri } = await Print.printToFileAsync({ html });
-      await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: `${lecture.title} — LectureAI` });
+      await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: `${lecture.title} — LecVoice AI` });
     } catch (err) {
       logError(err, 'DetailScreen/exportPDF');
       Alert.alert('Export Error', 'Could not generate PDF.');
@@ -380,7 +380,7 @@ export default function DetailScreen() {
       ...(lecture.flashcards || []).map((fc: any, i: number) => `**Q${i+1}.** ${fc.q}\n**A:** ${fc.a}\n`),
     ].join('\n');
 
-    const filename = `${lecture.title.replace(/[^a-z0-9]/gi, '_')}_LectureAI.md`;
+    const filename = `${lecture.title.replace(/[^a-z0-9]/gi, '_')}_LecVoice_AI.md`;
     const tempUri = `${FileSystem.cacheDirectory}${filename}`;
     try {
       await FileSystem.writeAsStringAsync(tempUri, md, { encoding: FileSystem.EncodingType.UTF8 });
@@ -420,7 +420,7 @@ export default function DetailScreen() {
   }
 
   function handleShare() {
-    Share.share({ message: `${lecture?.title || 'Lecture'} — Transcript, Summary & Notes from LectureAI` });
+    Share.share({ message: `${lecture?.title || 'Lecture'} — Transcript, Summary & Notes from LecVoice AI` });
   }
 
   if (loading) {

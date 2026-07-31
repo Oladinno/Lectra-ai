@@ -84,7 +84,7 @@ export default function HomeScreen() {
       <View style={[styles.appBar, { backgroundColor: C.surface, paddingTop: insets.top + 16, height: 64 + insets.top + 16 }]}>
         <View style={styles.appBarLeft}>
           <Ionicons name="menu" size={26} color={C.primary} />
-          <Text style={[styles.appBarTitle, { color: C.primary }]}>LectureAI</Text>
+          <Text style={[styles.appBarTitle, { color: C.primary }]}>LecVoice AI</Text>
         </View>
         <View style={[styles.avatar, { backgroundColor: C.surfaceContainerHigh, borderColor: C.outlineVariant }]}>
           <Ionicons name="person" size={20} color={C.onSurfaceVariant} />
