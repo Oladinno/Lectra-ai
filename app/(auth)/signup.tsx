@@ -18,6 +18,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
 import { API_BASE_URL } from '@/constants/api';
 import { logError } from '@/utils/logger';
+import { GoogleSignInButton } from '@/components/google-sign-in-button';
 
 export default function SignUpScreen() {
   const colorScheme = useColorScheme();
@@ -232,6 +233,11 @@ export default function SignUpScreen() {
               </>
             )}
           </TouchableOpacity>
+
+          <GoogleSignInButton
+            disabled={loading}
+            onError={(msg) => setErrorMsg(msg || null)}
+          />
 
           {/* Redirect Link */}
           <View style={styles.redirectContainer}>

@@ -14,7 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
 import { router } from 'expo-router';
-import { Audio } from 'expo-av';
+import { useAudioRecorder, usePermissions, RecordingPresets, setAudioModeAsync } from 'expo-audio';
 import { API_BASE_URL } from '@/constants/api';
 import { logError } from '@/utils/logger';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -36,9 +36,10 @@ export default function RecordScreen() {
   const { token } = useAuth();
   const [state, setState] = useState<RecordingState>('idle');
   const [elapsed, setElapsed] = useState(0);
-  const [recording, setRecording] = useState<Audio.Recording | null>(null);
-  const [permissionResponse, requestPermission] = Audio.usePermissions();
   const [loading, setLoading] = useState(false);
+  const [permissionResponse, requestPermission] = usePermissions();
+
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
 
   // Pulse animation refs
   const pulse1 = useRef(new Animated.Value(1)).current;
@@ -95,16 +96,10 @@ export default function RecordScreen() {
           return;
         }
       }
-      
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-      });
 
-      const { recording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
-      );
-      setRecording(recording);
+      await setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+      await recorder.prepareToRecordAsync();
+      recorder.record();
       setState('recording');
     } catch (err) {
       logError(err, 'RecordScreen/startRecording');
@@ -114,9 +109,8 @@ export default function RecordScreen() {
   }
 
   async function pauseRecording() {
-    if (!recording) return;
     try {
-      await recording.pauseAsync();
+      recorder.pause();
       setState('paused');
     } catch (err) {
       logError(err, 'RecordScreen/pauseRecording');
@@ -125,9 +119,8 @@ export default function RecordScreen() {
   }
 
   async function resumeRecording() {
-    if (!recording) return;
     try {
-      await recording.startAsync();
+      recorder.record();
       setState('recording');
     } catch (err) {
       logError(err, 'RecordScreen/resumeRecording');
@@ -146,12 +139,10 @@ export default function RecordScreen() {
   }
 
   async function handleSave() {
-    if (!recording) return;
     try {
       setLoading(true);
-      await recording.stopAndUnloadAsync();
-      const uri = recording.getURI();
-      setRecording(null);
+      await recorder.stop();
+      const uri = recorder.uri;
       setState('idle');
       setElapsed(0);
 
@@ -167,7 +158,7 @@ export default function RecordScreen() {
         name: filename,
         type: 'audio/x-m4a',
       } as any);
-      
+
       const defaultTitle = `Lecture ${new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`;
       formData.append('title', defaultTitle);
 
@@ -187,7 +178,6 @@ export default function RecordScreen() {
 
       const resData = await response.json();
       setLoading(false);
-      // Redirect to the processing view
       router.push({ pathname: '/processing', params: { id: resData.id } });
     } catch (err: any) {
       setLoading(false);
@@ -197,12 +187,9 @@ export default function RecordScreen() {
   }
 
   async function handleDiscard() {
-    if (recording) {
-      try {
-        await recording.stopAndUnloadAsync();
-      } catch (e) {}
-      setRecording(null);
-    }
+    try {
+      await recorder.stop();
+    } catch (e) {}
     setState('idle');
     setElapsed(0);
   }
@@ -210,8 +197,6 @@ export default function RecordScreen() {
   const isRecording = state === 'recording';
   const isPaused = state === 'paused';
   const isActive = isRecording || isPaused;
-
-  const pulseOpacity = isRecording ? 0.18 : 0;
 
   return (
     <View style={[styles.root, { backgroundColor: C.background }]}>

@@ -27,10 +27,10 @@ import { API_BASE_URL } from '@/constants/api';
 import { logError } from '@/utils/logger';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/app/context/auth';
-import { Audio } from 'expo-av';
+import { useAudioPlayer, useAudioPlayerStatus, setAudioModeAsync } from 'expo-audio';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -192,11 +192,14 @@ export default function DetailScreen() {
   const [loading, setLoading] = useState<boolean>(true);
 
   // Audio player state
-  const soundRef = useRef<Audio.Sound | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [audioPosition, setAudioPosition] = useState(0);
-  const [audioDuration, setAudioDuration] = useState(0);
+  const [audioUrl, setAudioUrl] = useState<string | undefined>(undefined);
+  const player = useAudioPlayer(audioUrl ? { uri: audioUrl } : undefined);
+  const playerStatus = useAudioPlayerStatus(player);
   const [audioLoading, setAudioLoading] = useState(false);
+
+  const isPlaying = playerStatus?.playing ?? false;
+  const audioPosition = Math.round((playerStatus?.currentTime ?? 0) * 1000);
+  const audioDuration = Math.round((playerStatus?.duration ?? 0) * 1000);
 
   // Edit state
   const [editMode, setEditMode] = useState(false);
@@ -229,7 +232,7 @@ export default function DetailScreen() {
     };
     fetchLecture();
     return () => {
-      soundRef.current?.unloadAsync();
+      player.release();
     };
   }, [id]);
 
@@ -237,37 +240,18 @@ export default function DetailScreen() {
   async function toggleAudio() {
     if (!lecture?.audio_url) return;
     try {
-      if (!soundRef.current) {
+      if (!audioUrl) {
+        // First play: set source and begin playback
         setAudioLoading(true);
-        await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true });
-        const { sound } = await Audio.Sound.createAsync(
-          { uri: lecture.audio_url },
-          { shouldPlay: true },
-          (status) => {
-            if (status.isLoaded) {
-              setAudioPosition(status.positionMillis || 0);
-              setAudioDuration(status.durationMillis || 0);
-              setIsPlaying(status.isPlaying || false);
-              if (status.didJustFinish) {
-                setIsPlaying(false);
-                setAudioPosition(0);
-              }
-            }
-          }
-        );
-        soundRef.current = sound;
+        await setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true });
+        setAudioUrl(lecture.audio_url);
         setAudioLoading(false);
-        setIsPlaying(true);
+        // Player starts loading; play when ready via useEffect
       } else {
-        const status = await soundRef.current.getStatusAsync();
-        if (status.isLoaded) {
-          if (status.isPlaying) {
-            await soundRef.current.pauseAsync();
-            setIsPlaying(false);
-          } else {
-            await soundRef.current.playAsync();
-            setIsPlaying(true);
-          }
+        if (isPlaying) {
+          player.pause();
+        } else {
+          player.play();
         }
       }
     } catch (err) {
@@ -275,6 +259,13 @@ export default function DetailScreen() {
       logError(err, 'DetailScreen/toggleAudio');
     }
   }
+
+  // Auto-play once player is loaded from URL
+  useEffect(() => {
+    if (audioUrl && playerStatus?.isLoaded && !isPlaying) {
+      player.play();
+    }
+  }, [audioUrl, playerStatus?.isLoaded]);
 
   function formatMs(ms: number) {
     const total = Math.floor(ms / 1000);

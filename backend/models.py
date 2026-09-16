@@ -14,7 +14,10 @@ class User(Base):
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     email = Column(String, nullable=False, unique=True, index=True)
-    hashed_password = Column(String, nullable=False)
+    # Nullable for Google OAuth users who never set a password
+    hashed_password = Column(String, nullable=True)
+    google_id = Column(String, nullable=True, unique=True, index=True)
+    auth_provider = Column(String, nullable=False, default="email")  # email | google
     created_at = Column(DateTime, default=datetime.utcnow)
 
     lectures = relationship("Lecture", back_populates="user", cascade="all, delete-orphan")
@@ -49,6 +52,9 @@ class UserCreate(BaseModel):
 class UserLogin(BaseModel):
     email: str
     password: str
+
+class GoogleAuthRequest(BaseModel):
+    id_token: str
 
 class UserResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)

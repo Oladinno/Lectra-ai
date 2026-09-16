@@ -1,5 +1,5 @@
 import ssl
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from config import settings
 
@@ -33,6 +33,34 @@ engine = create_engine(
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+def ensure_auth_schema():
+    """
+    Apply lightweight schema updates for Google auth on existing Neon DBs.
+    create_all() will not alter columns on tables that already exist.
+    """
+    statements = [
+        "ALTER TABLE users ALTER COLUMN hashed_password DROP NOT NULL",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id VARCHAR",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_provider VARCHAR DEFAULT 'email'",
+    ]
+    with engine.begin() as conn:
+        for stmt in statements:
+            try:
+                conn.execute(text(stmt))
+            except Exception:
+                # Column already in desired state or table not created yet
+                pass
+        # Unique index for google_id (ignore if already present)
+        try:
+            conn.execute(
+                text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS ix_users_google_id "
+                    "ON users (google_id) WHERE google_id IS NOT NULL"
+                )
+            )
+        except Exception:
+            pass
 
 def get_db():
     db = SessionLocal()

@@ -9,7 +9,17 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.anonymous.lectraai",
+      "infoPlist": {
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": [
+              "com.googleusercontent.apps.662167792212-7ba4fjf2to1fsov0ql2vv2nnmo3uq2nc"
+            ]
+          }
+        ]
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -39,7 +49,13 @@
             "backgroundColor": "#000000"
           }
         }
-      ]
+      ],
+      "expo-font",
+      "expo-image",
+      "expo-secure-store",
+      "expo-sharing",
+      "expo-status-bar",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,

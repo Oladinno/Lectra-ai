@@ -14,7 +14,7 @@ async def generate_lecture_insights(transcript_text: str) -> dict:
     if not settings.GEMINI_API_KEY:
         raise ValueError("Gemini API key is not set in environment variables")
         
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key={settings.GEMINI_API_KEY}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={settings.GEMINI_API_KEY}"
     
     prompt = f"""
     You are an expert academic study assistant. Analyze the following lecture transcript.

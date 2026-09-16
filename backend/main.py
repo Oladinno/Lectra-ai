@@ -35,6 +35,7 @@ app.add_middleware(
 @app.on_event("startup")
 def on_startup():
     models.Base.metadata.create_all(bind=database.engine)
+    database.ensure_auth_schema()
 
 async def process_lecture_task(lecture_id: str, temp_file_path: str, db_session_factory):
     """
@@ -147,13 +148,58 @@ def login(user_data: models.UserLogin, db: Session = Depends(database.get_db)):
     Authenticates user credentials and returns a JWT access token.
     """
     user = db.query(models.User).filter(models.User.email == user_data.email).first()
-    if not user or not auth.verify_password(user_data.password, user.hashed_password):
+    if not user or not user.hashed_password:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password. If you signed up with Google, use Continue with Google.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    if not auth.verify_password(user_data.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
         
+    access_token = auth.create_access_token(user_id=user.id)
+    return {"access_token": access_token, "token_type": "bearer"}
+
+@app.post("/api/auth/google", response_model=models.TokenResponse)
+def google_auth(payload: models.GoogleAuthRequest, db: Session = Depends(database.get_db)):
+    """
+    Verifies a Google ID token, creates or links the user, and returns an app JWT.
+    """
+    idinfo = auth.verify_google_id_token(payload.id_token)
+    google_sub = idinfo["sub"]
+    email = idinfo["email"].lower().strip()
+
+    user = db.query(models.User).filter(models.User.google_id == google_sub).first()
+
+    if not user:
+        user = db.query(models.User).filter(models.User.email == email).first()
+        if user:
+            # Link Google to an existing email account
+            if user.google_id and user.google_id != google_sub:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="This email is already linked to a different Google account.",
+                )
+            user.google_id = google_sub
+            if not user.auth_provider or user.auth_provider == "email":
+                # Keep password if present; mark dual capability as google+email
+                user.auth_provider = "google" if not user.hashed_password else user.auth_provider
+        else:
+            user = models.User(
+                email=email,
+                hashed_password=None,
+                google_id=google_sub,
+                auth_provider="google",
+            )
+            db.add(user)
+
+    db.commit()
+    db.refresh(user)
+
     access_token = auth.create_access_token(user_id=user.id)
     return {"access_token": access_token, "token_type": "bearer"}
 

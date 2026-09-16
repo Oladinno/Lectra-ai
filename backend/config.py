@@ -11,5 +11,11 @@ class Settings:
     SUPABASE_URL: str = os.getenv("SUPABASE_URL", "")
     SUPABASE_KEY: str = os.getenv("SUPABASE_KEY", "")
     SUPABASE_BUCKET: str = os.getenv("SUPABASE_BUCKET", "lectures")
+    # Comma-separated list of Google OAuth client IDs (web, iOS, Android)
+    # Tokens from any of these audiences are accepted.
+    GOOGLE_CLIENT_IDS: str = os.getenv("GOOGLE_CLIENT_IDS", "") or os.getenv("GOOGLE_CLIENT_ID", "")
+
+    def google_client_id_list(self) -> list[str]:
+        return [c.strip() for c in self.GOOGLE_CLIENT_IDS.split(",") if c.strip()]
 
 settings = Settings()

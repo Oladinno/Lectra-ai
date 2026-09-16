@@ -18,6 +18,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
 import { API_BASE_URL } from '@/constants/api';
 import { logError } from '@/utils/logger';
+import { GoogleSignInButton } from '@/components/google-sign-in-button';
 
 export default function SignInScreen() {
   const colorScheme = useColorScheme();
@@ -191,6 +192,11 @@ export default function SignInScreen() {
             )}
           </TouchableOpacity>
 
+          <GoogleSignInButton
+            disabled={loading}
+            onError={(msg) => setErrorMsg(msg || null)}
+          />
+
           {/* Redirect Link */}
           <View style={styles.redirectContainer}>
             <Text style={[styles.redirectText, { color: C.onSurfaceVariant }]}>Don't have an account? </Text>
@@ -222,7 +228,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   brandName: { fontSize: 28, fontWeight: '800', letterSpacing: -0.5, marginBottom: 8 },
-  subtitle: { fontSize: 13, textAlign: 'center', lineHeight: 18, maxWith: 260 },
+  subtitle: { fontSize: 13, textAlign: 'center', lineHeight: 18, maxWidth: 260 },
   formContainer: { width: '100%' },
   formTitle: { fontSize: 22, fontWeight: '700', letterSpacing: -0.3, marginBottom: 2 },
   formSub: { fontSize: 13, marginBottom: 20 },
