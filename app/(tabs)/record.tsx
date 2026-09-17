@@ -14,7 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
 import { router } from 'expo-router';
-import { useAudioRecorder, usePermissions, RecordingPresets, setAudioModeAsync } from 'expo-audio';
+import { useAudioRecorder, RecordingPresets, setAudioModeAsync, requestRecordingPermissionsAsync, getRecordingPermissionsAsync } from 'expo-audio';
 import { API_BASE_URL } from '@/constants/api';
 import { logError } from '@/utils/logger';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -37,7 +37,6 @@ export default function RecordScreen() {
   const [state, setState] = useState<RecordingState>('idle');
   const [elapsed, setElapsed] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [permissionResponse, requestPermission] = usePermissions();
 
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
 
@@ -89,9 +88,10 @@ export default function RecordScreen() {
 
   async function startRecording() {
     try {
-      if (permissionResponse?.status !== 'granted') {
-        const permission = await requestPermission();
-        if (permission.status !== 'granted') {
+      const { granted } = await getRecordingPermissionsAsync();
+      if (!granted) {
+        const { granted: newGranted } = await requestRecordingPermissionsAsync();
+        if (!newGranted) {
           Alert.alert("Permission Required", "Microphone access is needed to record lectures.");
           return;
         }

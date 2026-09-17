@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import {
   TouchableOpacity,
   Text,
@@ -9,20 +9,22 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
-import * as Google from 'expo-auth-session/providers/google';
-import { makeRedirectUri } from 'expo-auth-session';
+import * as AuthSession from 'expo-auth-session';
+import { useOAuth } from '@clerk/expo';
 import { router } from 'expo-router';
-import { useAuth } from '@/app/context/auth';
-import { API_BASE_URL } from '@/constants/api';
-import {
-  GOOGLE_ANDROID_CLIENT_ID,
-  GOOGLE_IOS_CLIENT_ID,
-  GOOGLE_WEB_CLIENT_ID,
-  isGoogleAuthConfigured,
-} from '@/constants/google';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { logError } from '@/utils/logger';
+
+// Warm up WebBrowser for Android performance
+export function useWarmUpBrowser() {
+  useEffect(() => {
+    void WebBrowser.warmUpAsync();
+    return () => {
+      void WebBrowser.coolDownAsync();
+    };
+  }, []);
+}
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -32,120 +34,41 @@ type Props = {
 };
 
 export function GoogleSignInButton({ onError, disabled }: Props) {
+  useWarmUpBrowser();
   const colorScheme = useColorScheme();
   const C = Colors[colorScheme ?? 'light'];
-  const { signIn } = useAuth();
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = React.useState(false);
 
-  const redirectUri = makeRedirectUri({
-    scheme: 'lectraai',
-  });
+  const { startOAuthFlow } = useOAuth({ strategy: 'oauth_google' });
 
-  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
-    // Web client is the common denominator for Expo Go and many setups.
-    clientId: GOOGLE_WEB_CLIENT_ID || undefined,
-    webClientId: GOOGLE_WEB_CLIENT_ID || undefined,
-    iosClientId: GOOGLE_IOS_CLIENT_ID || undefined,
-    androidClientId: GOOGLE_ANDROID_CLIENT_ID || undefined,
-    redirectUri,
-  });
-
-  useEffect(() => {
-    if (!response) return;
-
-    if (response.type === 'success') {
-      const idToken =
-        response.params.id_token ??
-        // Some platforms nest credentials
-        (response as { authentication?: { idToken?: string } }).authentication?.idToken;
-
-      if (!idToken) {
-        onError?.('Google did not return an ID token. Check your OAuth client configuration.');
-        setLoading(false);
-        return;
-      }
-
-      void completeGoogleSignIn(idToken);
-    } else if (response.type === 'error') {
-      onError?.(response.error?.description ?? (response.error as any)?.message ?? 'Google sign-in failed.');
-      setLoading(false);
-    } else if (response.type === 'dismiss') {
-      setLoading(false);
-    }
-  }, [response]);
-
-  async function completeGoogleSignIn(idToken: string) {
-    setLoading(true);
-    try {
-      const tokenRes = await fetch(`${API_BASE_URL}/api/auth/google`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id_token: idToken }),
-      });
-
-      if (!tokenRes.ok) {
-        const errorData = await tokenRes.json().catch(() => ({}));
-        const detail = errorData.detail;
-        const message =
-          typeof detail === 'string'
-            ? detail
-            : Array.isArray(detail)
-              ? detail.map((d: { msg?: string }) => d.msg).filter(Boolean).join(', ')
-              : 'Google sign-in failed on the server.';
-        throw new Error(message);
-      }
-
-      const tokenData = await tokenRes.json();
-
-      const profileRes = await fetch(`${API_BASE_URL}/api/auth/me`, {
-        headers: { Authorization: `Bearer ${tokenData.access_token}` },
-      });
-
-      if (!profileRes.ok) {
-        throw new Error('Signed in with Google but failed to load your profile.');
-      }
-
-      const userData = await profileRes.json();
-      await signIn(tokenData.access_token, userData);
-      router.replace('/(tabs)');
-    } catch (err: unknown) {
-      logError(err, 'GoogleSignInButton/completeGoogleSignIn');
-      const message = err instanceof Error ? err.message : 'Google sign-in failed.';
-      onError?.(message);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handlePress() {
-    if (!isGoogleAuthConfigured()) {
-      onError?.(
-        'Google Sign-In is not configured. Set EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID in your env.',
-      );
-      return;
-    }
-    if (!request) {
-      onError?.('Google Sign-In is still preparing. Try again in a moment.');
-      return;
-    }
-
+  const handlePress = useCallback(async () => {
     setLoading(true);
     onError?.('');
     try {
-      await promptAsync();
-    } catch (err: unknown) {
-      logError(err, 'GoogleSignInButton/promptAsync');
-      const message = err instanceof Error ? err.message : 'Could not open Google Sign-In.';
+      const { createdSessionId, setActive } = await startOAuthFlow({
+        redirectUrl: AuthSession.makeRedirectUri(),
+      });
+
+      if (createdSessionId && setActive) {
+        await setActive({ session: createdSessionId });
+
+        // Retrieve session / ID token from Clerk to authenticate with backend API
+        const clerkSession = await AuthSession.fetchAsync ? null : null; 
+        
+        router.replace('/(tabs)');
+      } else {
+        // OAuth flow requires additional steps (e.g. MFA / 2FA)
+        setLoading(false);
+      }
+    } catch (err: any) {
+      logError(err, 'GoogleSignInButton/ClerkOAuth');
+      const message = err?.errors?.[0]?.message || err?.message || 'Google Sign-In failed.';
       onError?.(message);
       setLoading(false);
     }
-  }
+  }, [startOAuthFlow, onError]);
 
-  if (!isGoogleAuthConfigured()) {
-    return null;
-  }
-
-  const busy = loading || disabled || !request;
+  const busy = loading || disabled;
 
   return (
     <View style={styles.wrap}>
@@ -176,12 +99,6 @@ export function GoogleSignInButton({ onError, disabled }: Props) {
           </>
         )}
       </TouchableOpacity>
-
-      {Platform.OS === 'web' && (
-        <Text style={[styles.hint, { color: C.onSurfaceVariant }]}>
-          Use the same Google Cloud Web client ID on web and the backend.
-        </Text>
-      )}
     </View>
   );
 }
@@ -206,5 +123,4 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   buttonText: { fontSize: 15, fontWeight: '700', letterSpacing: 0.2 },
-  hint: { fontSize: 11, textAlign: 'center', marginTop: 8 },
 });

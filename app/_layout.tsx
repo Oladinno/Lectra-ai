@@ -1,5 +1,4 @@
 import { DarkTheme, DefaultTheme, ThemeProvider, Stack, router } from 'expo-router';
-// import stack and router included above
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 import { useEffect } from 'react';
@@ -9,6 +8,27 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { logError } from '@/utils/logger';
 import { AuthProvider, useAuth } from './context/auth';
+import { ClerkProvider, ClerkLoaded } from '@clerk/expo';
+import * as SecureStore from 'expo-secure-store';
+
+const tokenCache = {
+  async getToken(key: string) {
+    try {
+      return SecureStore.getItemAsync(key);
+    } catch (err) {
+      return null;
+    }
+  },
+  async saveToken(key: string, value: string) {
+    try {
+      return SecureStore.setItemAsync(key, value);
+    } catch (err) {
+      return;
+    }
+  },
+};
+
+const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY!;
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -94,9 +114,13 @@ export default function RootLayout() {
 
   return (
     <ErrorBoundary>
-      <AuthProvider>
-        <MainLayoutContent />
-      </AuthProvider>
+      <ClerkProvider tokenCache={tokenCache} publishableKey={publishableKey}>
+        <ClerkLoaded>
+          <AuthProvider>
+            <MainLayoutContent />
+          </AuthProvider>
+        </ClerkLoaded>
+      </ClerkProvider>
     </ErrorBoundary>
   );
 }
