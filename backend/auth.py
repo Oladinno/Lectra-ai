@@ -128,7 +128,7 @@ def get_clerk_public_key(token_header):
     try:
         import base64
         raw = clerk_publishable.split("pk_test_")[1].rstrip("$")
-        decoded = base64.b64decode(raw + "==").decode("utf-8")
+        decoded = base64.b64decode(raw + "==").decode("utf-8").rstrip("$").strip()
         jwks_url = f"https://{decoded}/.well-known/jwks.json"
         res = requests.get(jwks_url, timeout=5)
         if res.ok:
