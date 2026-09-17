@@ -113,7 +113,6 @@ def create_access_token(user_id: str, expires_delta: Optional[timedelta] = None)
     return encoded_jwt
 
 import requests
-from jwt.algorithms import RSAAlgorithm
 
 CLERK_PEM_KEY = None
 
@@ -126,7 +125,6 @@ def get_clerk_public_key(token_header):
         return CLERK_PEM_KEY
 
     clerk_publishable = os.getenv("EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY", "pk_test_cmVsaWV2ZWQtdGVycmFwaW4tNzkxLmNsZXJrLmFjY291bnRzLmRldiQ")
-    # Decode domain from publishable key prefix (pk_test_<domain>$)
     try:
         import base64
         raw = clerk_publishable.split("pk_test_")[1].rstrip("$")
@@ -138,8 +136,25 @@ def get_clerk_public_key(token_header):
             kid = token_header.get("kid")
             for key in jwks.get("keys", []):
                 if key.get("kid") == kid:
-                    CLERK_PEM_KEY = RSAAlgorithm.from_jwk(key)
-                    return CLERK_PEM_KEY
+                    try:
+                        from jwt.algorithms import RSAAlgorithm
+                        CLERK_PEM_KEY = RSAAlgorithm.from_jwk(key)
+                        return CLERK_PEM_KEY
+                    except Exception:
+                        # Fallback for environment without PyJWT[crypto] installed
+                        from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicNumbers
+                        from cryptography.hazmat.primitives import serialization
+                        def b64_to_int(b64_str):
+                            padded = b64_str + '=' * (-len(b64_str) % 4)
+                            return int.from_bytes(base64.urlsafe_b64decode(padded), 'big')
+                        n = b64_to_int(key['n'])
+                        e = b64_to_int(key['e'])
+                        pub = RSAPublicNumbers(e, n).public_key()
+                        CLERK_PEM_KEY = pub.public_bytes(
+                            encoding=serialization.Encoding.PEM,
+                            format=serialization.PublicFormat.SubjectPublicKeyInfo
+                        )
+                        return CLERK_PEM_KEY
     except Exception as e:
         print(f"Failed to fetch Clerk JWKS key: {e}")
     return None
