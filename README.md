@@ -1,50 +1,64 @@
-# Welcome to your Expo app 👋
+# Lectra AI (LecVoice AI) 🎙️📚
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+> An intelligent, multimodal lecture recording and AI study companion built with **Expo SDK 54 (React Native)** and **FastAPI**.
 
-## Get started
+Transform recorded or uploaded lectures into time-synchronized transcripts, structured Cornell notes, executive summaries, interactive 3D flip flashcards, and self-assessment quizzes in minutes.
 
-1. Install dependencies
+---
 
-   ```bash
-   npm install
-   ```
+## 📖 Complete Technical Documentation
 
-2. Start the app
+For the comprehensive system architecture, database diagrams, execution pipelines, and workflow models, see:
 
-   ```bash
-   npx expo start
-   ```
+👉 **[DOCUMENTATION.md](file:///c:/Users/DELL/Documents/Coding%20Projects/lectra-ai/DOCUMENTATION.md)**
 
-In the output, you'll find options to open the app in a
+Included in the documentation:
+1. **High-Level Design (HLD)** & Tiered Architecture Diagram
+2. **Entity-Relationship (ER) Diagram** with Full Data Dictionary & JSON Schemas
+3. **Use Case Diagram** & Actor Interaction Specifications
+4. **Sequence Diagrams** (End-to-End Processing, Auth Flow, and Study/Export Session)
+5. **How It Works**: Deep-Dive Execution Pipeline (Audio Slicing, Groq Whisper ASR, Gemini Flash generation, and client hydration)
+6. **API Specification** (REST Endpoints & Payloads)
+7. **Security, Scalability & Resilience**
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+---
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+## 🚀 Tech Stack
 
-## Get a fresh project
+- **Frontend**: React Native, Expo SDK 54, Expo Router, React Native Reanimated, Expo Audio, Expo Print
+- **Backend API**: FastAPI (Python 3.11+), Uvicorn, Pydantic, SQLAlchemy, Pg8000
+- **Audio Processing**: `static-ffmpeg` & `ffprobe` (zero-transcode 10-minute segmenting)
+- **Speech-to-Text**: Groq Cloud API (`whisper-large-v3` LPU acceleration)
+- **Pedagogical AI**: Google Gemini Flash API (Strict JSON schema generation)
+- **Database**: Neon Serverless PostgreSQL
+- **Object Storage**: Supabase Storage (`lectures` bucket)
 
-When you're ready, run:
+---
+
+## 🛠️ Quick Start
+
+### 1. Backend Setup
 
 ```bash
-npm run reset-project
+cd backend
+python -m venv venv
+source venv/bin/activate  # On Windows: .\venv\Scripts\activate
+pip install -r requirements.txt
+uvicorn main:app --reload --port 8000
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+Ensure your `.env` contains:
+- `DATABASE_URL` (Neon PostgreSQL)
+- `SUPABASE_URL` & `SUPABASE_KEY`
+- `GROQ_API_KEY`
+- `GEMINI_API_KEY`
+- `GOOGLE_CLIENT_IDS` (Optional for Google OAuth)
 
-## Learn more
+### 2. Mobile App Setup
 
-To learn more about developing your project with Expo, look at the following resources:
+```bash
+# In the root directory
+npm install
+npx expo start
+```
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
