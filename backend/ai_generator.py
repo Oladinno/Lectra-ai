@@ -1,3 +1,4 @@
+import asyncio
 import json
 import httpx
 from config import settings
@@ -13,9 +14,7 @@ async def generate_lecture_insights(transcript_text: str) -> dict:
     """
     if not settings.GEMINI_API_KEY:
         raise ValueError("Gemini API key is not set in environment variables")
-        
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key={settings.GEMINI_API_KEY}"
-    
+
     prompt = f"""
     You are an expert academic study assistant. Analyze the following lecture transcript.
     Provide the following structured study materials:
@@ -96,18 +95,40 @@ async def generate_lecture_insights(transcript_text: str) -> dict:
         }
     }
     
-    async with httpx.AsyncClient() as client:
-        response = await client.post(url, json=payload, timeout=300.0)
-        
-        if response.status_code != 200:
-            raise Exception(f"Gemini API returned {response.status_code}: {response.text}")
-            
-        result_json = response.json()
-        
+    base_url = "https://generativelanguage.googleapis.com/v1beta/models"
+    transient_statuses = {429, 500, 502, 503}
+
+    response = None
+    for attempt in range(3):
         try:
-            # Extract text candidate and parse
-            content_text = result_json["candidates"][0]["content"]["parts"][0]["text"]
-            insights = json.loads(content_text)
-            return insights
-        except (KeyError, IndexError, json.JSONDecodeError) as e:
-            raise Exception(f"Error parsing Gemini structured JSON output: {e}. Raw response: {result_json}")
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{base_url}/gemini-3.6-flash:generateContent",
+                    params={"key": settings.GEMINI_API_KEY},
+                    json=payload,
+                    timeout=300.0,
+                )
+        except httpx.TransportError as e:
+            if attempt == 2:
+                raise Exception(f"Gemini API request failed after 3 attempts: {e}")
+            await asyncio.sleep(2 ** attempt * 2)
+            continue
+
+        if response.status_code == 200:
+            break
+        if response.status_code not in transient_statuses or attempt == 2:
+            break
+        await asyncio.sleep(2 ** attempt * 2)
+
+    if response.status_code != 200:
+        raise Exception(f"Gemini API returned {response.status_code}: {response.text}")
+
+    result_json = response.json()
+
+    try:
+        # Extract text candidate and parse
+        content_text = result_json["candidates"][0]["content"]["parts"][0]["text"]
+        insights = json.loads(content_text)
+        return insights
+    except (KeyError, IndexError, json.JSONDecodeError) as e:
+        raise Exception(f"Error parsing Gemini structured JSON output: {e}. Raw response: {result_json}")
