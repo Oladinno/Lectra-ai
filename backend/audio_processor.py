@@ -85,19 +85,39 @@ def get_audio_duration_ms(file_path: str) -> int:
 def split_audio_into_chunks(file_path: str, chunk_minutes: int = 10) -> list[str]:
     """
     Splits the audio file at file_path into chunks of chunk_minutes.
-    Uses ffmpeg directly — no pydub required.
+    Re-encodes to mono 16kHz audio at 32 kbps (Whisper-optimized), ensuring
+    chunk files are tiny (approx. 2.4 MB per 10 minutes) and well below
+    Groq's 25 MB API request size limit.
     Returns list of paths to the temporary chunk files.
     """
     _init_ffmpeg()
 
     duration_ms = get_audio_duration_ms(file_path)
+    temp_dir = tempfile.gettempdir()
+
+    # Fallback if ffprobe couldn't determine duration:
+    # Compress the entire file to mono 16k 32kbps so it doesn't exceed 25MB
     if duration_ms == 0:
-        # Fallback: treat whole file as one chunk
+        compressed_fallback = os.path.join(temp_dir, f"compressed_{uuid.uuid4().hex}.m4a")
+        res = subprocess.run(
+            [
+                _ffmpeg_path,
+                "-y",
+                "-i", file_path,
+                "-vn",
+                "-ac", "1",
+                "-ar", "16000",
+                "-b:a", "32k",
+                compressed_fallback
+            ],
+            capture_output=True, timeout=120
+        )
+        if res.returncode == 0 and os.path.exists(compressed_fallback) and os.path.getsize(compressed_fallback) > 0:
+            return [compressed_fallback]
         return [file_path]
 
     chunk_length_ms = chunk_minutes * 60 * 1000
     chunk_paths = []
-    temp_dir = tempfile.gettempdir()
 
     start_ms = 0
     chunk_index = 0
@@ -109,15 +129,19 @@ def split_audio_into_chunks(file_path: str, chunk_minutes: int = 10) -> list[str
         chunk_name = f"chunk_{chunk_index}_{uuid.uuid4().hex}.m4a"
         chunk_file_path = os.path.join(temp_dir, chunk_name)
 
-        # Use ffmpeg to extract the segment: -ss (start) -t (duration) -c copy (no re-encode)
+        # Place -ss and -t before -i for fast, accurate seeking
+        # Convert to mono 16kHz at 32kbps (approx 2.4 MB for 10 minutes)
         subprocess.run(
             [
                 _ffmpeg_path,
-                "-y",                  # overwrite output if exists
-                "-i", file_path,
+                "-y",
                 "-ss", str(start_sec),
                 "-t", str(duration_sec),
-                "-c", "copy",          # copy codec — very fast, no re-encoding
+                "-i", file_path,
+                "-vn",
+                "-ac", "1",
+                "-ar", "16000",
+                "-b:a", "32k",
                 chunk_file_path
             ],
             capture_output=True, timeout=120
@@ -129,8 +153,24 @@ def split_audio_into_chunks(file_path: str, chunk_minutes: int = 10) -> list[str
         start_ms += chunk_length_ms
         chunk_index += 1
 
-    # If nothing was split (very short file), return original
+    # If nothing was split, compress and return single fallback
     if not chunk_paths:
+        compressed_fallback = os.path.join(temp_dir, f"compressed_{uuid.uuid4().hex}.m4a")
+        subprocess.run(
+            [
+                _ffmpeg_path,
+                "-y",
+                "-i", file_path,
+                "-vn",
+                "-ac", "1",
+                "-ar", "16000",
+                "-b:a", "32k",
+                compressed_fallback
+            ],
+            capture_output=True, timeout=120
+        )
+        if os.path.exists(compressed_fallback) and os.path.getsize(compressed_fallback) > 0:
+            return [compressed_fallback]
         return [file_path]
 
     return chunk_paths

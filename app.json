@@ -7,7 +7,6 @@
     "icon": "./assets/images/icon.png",
     "scheme": "lectraai",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.anonymous.lectraai",
@@ -28,7 +27,6 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.anonymous.lectraai"
     },
@@ -55,11 +53,18 @@
       "expo-secure-store",
       "expo-sharing",
       "expo-status-bar",
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "7de34c3a-5ecd-42e7-b712-87fbad10bf09"
+      }
     }
   }
 }

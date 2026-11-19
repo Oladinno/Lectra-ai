@@ -97,7 +97,7 @@ export default function RecordScreen() {
         }
       }
 
-      await setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
       await recorder.prepareToRecordAsync();
       recorder.record();
       setState('recording');
@@ -150,33 +150,44 @@ export default function RecordScreen() {
         throw new Error("No recording URI resolved");
       }
 
-      // Prepare multi-part form upload
-      const formData = new FormData();
-      const filename = `recording_${Date.now()}.m4a`;
-      formData.append('file', {
-        uri: Platform.OS === 'ios' ? uri.replace('file://', '') : uri,
-        name: filename,
-        type: 'audio/x-m4a',
-      } as any);
-
       const defaultTitle = `Lecture ${new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`;
-      formData.append('title', defaultTitle);
 
-      const response = await fetch(`${API_BASE_URL}/api/upload`, {
-        method: 'POST',
-        body: formData,
-        headers: {
-          'Accept': 'application/json',
-          'Authorization': token ? `Bearer ${token}` : '',
-        },
+      const resData = await new Promise<{ id: string }>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', `${API_BASE_URL}/api/upload`);
+        xhr.setRequestHeader('Accept', 'application/json');
+        if (token) {
+          xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        }
+
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              resolve(JSON.parse(xhr.responseText));
+            } catch (e) {
+              reject(new Error('Invalid JSON response from server'));
+            }
+          } else {
+            reject(new Error(`Upload failed: ${xhr.status} - ${xhr.responseText}`));
+          }
+        };
+
+        xhr.onerror = () => {
+          reject(new Error('Network request failed'));
+        };
+
+        const formData = new FormData();
+        const filename = `recording_${Date.now()}.m4a`;
+        formData.append('file', {
+          uri: Platform.OS === 'ios' ? uri.replace('file://', '') : uri,
+          name: filename,
+          type: 'audio/x-m4a',
+        } as any);
+        formData.append('title', defaultTitle);
+
+        xhr.send(formData);
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Upload failed: ${response.status} - ${errorText}`);
-      }
-
-      const resData = await response.json();
       setLoading(false);
       router.push({ pathname: '/processing', params: { id: resData.id } });
     } catch (err: any) {

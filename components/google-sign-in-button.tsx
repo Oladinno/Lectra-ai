@@ -52,9 +52,6 @@ export function GoogleSignInButton({ onError, disabled }: Props) {
       if (createdSessionId && setActive) {
         await setActive({ session: createdSessionId });
 
-        // Retrieve session / ID token from Clerk to authenticate with backend API
-        const clerkSession = await AuthSession.fetchAsync ? null : null; 
-        
         router.replace('/(tabs)');
       } else {
         // OAuth flow requires additional steps (e.g. MFA / 2FA)

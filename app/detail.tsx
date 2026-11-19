@@ -231,9 +231,6 @@ export default function DetailScreen() {
       }
     };
     fetchLecture();
-    return () => {
-      player.release();
-    };
   }, [id]);
 
   // ── Audio playback ──────────────────────────────────────────────────────────
@@ -243,7 +240,7 @@ export default function DetailScreen() {
       if (!audioUrl) {
         // First play: set source and begin playback
         setAudioLoading(true);
-        await setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true });
+        await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
         setAudioUrl(lecture.audio_url);
         setAudioLoading(false);
         // Player starts loading; play when ready via useEffect
@@ -311,7 +308,7 @@ export default function DetailScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              await soundRef.current?.unloadAsync();
+              player.pause();
               const res = await fetch(`${API_BASE_URL}/api/lectures/${id}`, {
                 method: 'DELETE',
                 headers: { 'Authorization': `Bearer ${token}` },
@@ -443,7 +440,7 @@ export default function DetailScreen() {
     <View style={[styles.root, { backgroundColor: C.background }]}>
       {/* App Bar */}
       <View style={[styles.appBar, { backgroundColor: C.surface, paddingTop: insets.top + 12, height: 72 + insets.top + 12 }]}>
-        <TouchableOpacity onPress={() => { soundRef.current?.unloadAsync(); router.back(); }} style={styles.backBtn}>
+        <TouchableOpacity onPress={() => { player.pause(); router.back(); }} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={24} color={C.primary} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
